@@ -1,0 +1,16 @@
+# depslib dependency file v1.0
+1474406384 source:c:\users\john\desktop\projects\snippets\main.cpp
+	"util/util.hpp"
+	"util/vector.hpp"
+
+1474406439 c:\users\john\desktop\projects\snippets\util\vector.hpp
+	"my_swap.hpp"
+	<assert.h>
+	<stdlib.h>
+	<new>
+
+1474404248 c:\users\john\desktop\projects\snippets\util\my_swap.hpp
+
+1474405098 c:\users\john\desktop\projects\snippets\util\util.hpp
+	<stdio.h>
+
