@@ -142,6 +142,13 @@ Mat<M, N, T> operator * (const Mat<M, NM, T> &a, const Mat<NM, N, T> &b){
     return result;
 }
 
+template <int M, int N, typename T>
+Mat<M, N, T> mul_each(const Mat<M, N, T> &a, const Mat<M, N, T> &b){
+    Mat<M, N, T> result;
+    for (int k = 0; k < M*N; k++) result[k] = a[k] * b[k];
+    return result;
+}
+
 //==============================================================================
 // boolean operations
 template <int M, int N, typename T>
@@ -174,8 +181,8 @@ void enumerate(Mat<M, N, T> &a){
 }
 
 template <int M, int N, typename T>
-Mat<M, N, T> transpose(const Mat<M, N, T> &a){
-    Mat<M, N, T> b;
+Mat<N, M, T> transpose(const Mat<M, N, T> &a){
+    Mat<N, M, T> b;
     for (int i = 0; i < M; i++) for (int j = 0; j < N; j++) b(j, i) = a(i, j);
     return b;
 }

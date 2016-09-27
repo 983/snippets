@@ -85,6 +85,11 @@ struct Vector {
         swap(temp);
     }
 
+    void resize(size_t new_size){
+        reserve(new_size);
+        _size = new_size;
+    }
+
     void push(const T &value){
         if (size() >= capacity()){
             reserve(size()*5/2 + 1);
@@ -106,5 +111,9 @@ struct Vector {
             at(i).~T();
         }
         free(_data);
+    }
+
+    void clear(){
+        _size = 0;
     }
 };

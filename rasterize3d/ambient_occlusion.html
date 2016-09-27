@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <script type="text/javascript" src="gl-matrix-min.js"></script>
+
+    <style type="text/css">
+        hml, body, div, canvas {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+    
+    <script id="myvertexshader" type="x-shader/x-vertex">
+    attribute vec4 a_position;
+    attribute vec2 a_texcoord;
+    attribute vec3 a_normal;
+    attribute vec4 a_color;
+
+    uniform mat4 u_modelviewprojection;
+    uniform mat4 u_modelview;
+
+    varying vec2 v_texcoord;
+    varying vec3 v_normal;
+    varying vec4 v_color;
+    varying vec3 v_position;
+
+    void main(){
+		v_texcoord = a_texcoord;
+		v_color = a_color;
+		v_normal = a_normal;
+		
+		v_position = a_position.xyz;
+        gl_Position = u_modelviewprojection * a_position;
+    }
+    </script>
+
+    <script id="myfragmentshader" type="x-shader/x-fragment">
+    precision highp float;
+    
+    varying vec2 v_texcoord;
+    varying vec3 v_normal;
+    varying vec4 v_color;
+    varying vec3 v_position;
+
+	float sphere_occlusion(vec3 p, vec3 normal, vec3 center, float radius){
+		vec3 delta = center - p;
+		float inv_len = 1.0/length(delta);
+		float rd = radius*inv_len;
+		// no coverage at u = 0, full coverage at u = 1
+		float u = dot(normal, delta*inv_len);
+		// fall off by inverse square law
+		return u*rd*rd;
+	}
+	
+	#define pi 3.14159265358979
+	
+	float spherical_triangle_area(vec3 a, vec3 b, vec3 c){
+		float cosa = dot(b, c);
+		float cosb = dot(a, c);
+		float cosc = dot(a, b);
+		
+		float f = 1.0001;
+		float sina = sqrt(f - cosa*cosa);
+		float sinb = sqrt(f - cosb*cosb);
+		float sinc = sqrt(f - cosc*cosc);
+		
+		float A = acos((cosa - cosb*cosc)/sinb/sinc);
+		float B = acos((cosb - cosc*cosa)/sinc/sina);
+		float C = acos((cosc - cosa*cosb)/sina/sinb);
+		
+		return A + B + C - pi;
+	}
+	
+	vec4 noise(vec4 v){
+		// ensure reasonable range
+		v = fract(v) + fract(v*1e4) + fract(v*1e-4);
+		// seed
+		v += vec4(0.12345, 0.6789, 0.314159, 0.271828);
+		// more iterations => more random
+		v = fract(v*dot(v, v)*123.456);
+		v = fract(v*dot(v, v)*123.456);
+		return v;
+	}
+	
+	float triangle_occlusion(vec3 p, vec3 a, vec3 b, vec3 c){
+		a = normalize(p - a);
+		b = normalize(p - b);
+		c = normalize(p - c);
+		// TODO clip triangle to plane
+		return (0.5/pi)*spherical_triangle_area(a, b, c);
+	}
+	
+	float ray_triangle_intersection(vec3 p, vec3 direction, vec3 a, vec3 b, vec3 c){
+		vec3 ba = b - a;
+		vec3 ca = c - a;
+		
+		vec3 u = cross(direction, ca);
+		float f = dot(ba, u);
+		
+		if (abs(f) < 1e-5) return 0.0;
+		
+		vec3 v = (p - a)/f;
+		vec3 w = cross(v, ba);
+		
+		float u0 = dot(u, v);
+		float u1 = dot(w, direction);
+		float u2 = 1.0 - u0 - u1;
+		
+		// float t = dot(ca, w)
+		
+		return u0 >= 0.0 && u1 >= 0.0 && u2 >= 0.0 ? 1.0 : 0.0;
+	}
+	
+	float triangle_occlusion2(vec3 p, vec3 a, vec3 b, vec3 c){
+		float sum = 0.0;
+		float count = 0.0;
+		for (int i = 0; i < 32; i++){
+			vec3 direction = noise(vec4(p, float(i))).xyz*2.0 - 1.0;
+			if (dot(direction, direction) > 1.0) continue;
+			direction = normalize(direction);
+			if (dot(direction, v_normal) < 0.0) direction = -direction;
+			
+			sum += ray_triangle_intersection(p, direction, a, b, c);
+			count += 1.0;
+		}
+		return sum / count;
+	}
+	
+	uniform vec3 a;
+	uniform vec3 b;
+	uniform vec3 c;
+	uniform vec3 d;
+	
+    void main(){
+		vec2 uv = v_texcoord;
+		
+		vec4 color = v_color;
+		//color.rg = v_texcoord;
+		color.rgb *= 1.0 - sphere_occlusion(v_position, v_normal, vec3(0.0, 0.0, 2.0), 1.0);
+		if (v_position.x < 0.0){
+			color.rgb *= 1.0 - triangle_occlusion(v_position, a, b, c);
+			color.rgb *= 1.0 - triangle_occlusion(v_position, a, c, d);
+		}else{
+			color.rgb *= 1.0 - triangle_occlusion2(v_position, a, b, c);
+			color.rgb *= 1.0 - triangle_occlusion2(v_position, a, c, d);
+		}
+		//color.rgb = v_normal*0.5 + 0.5;
+		
+		gl_FragColor = color;
+    }
+    </script>
+</head>
+
+<body>
+<canvas id="webgl-canvas" style="border: none; position: absolute; width: 100%; height: 100%"></canvas>
+</body>
+
+<script type="text/javascript">
+"use strict";
+var canvas = document.getElementById("webgl-canvas");
+canvas.width = canvas.offsetWidth;
+canvas.height = canvas.offsetHeight;
+
+var gl = canvas.getContext("webgl");
+var modelview           = mat4.create();
+var modelviewprojection = mat4.create();
+var          projection = mat4.create();
+
+function dot(ax, ay, az, bx, by, bz){
+	return ax*bx + ay*by + az*bz
+}
+
+var pi = Math.PI
+var sin = Math.sin
+var cos = Math.cos
+var tan = Math.tan
+var asin = Math.asin
+var acos = Math.acos
+var atan = Math.atan
+var sqrt = Math.sqrt
+
+function spherical_triangle_area(ax, ay, az, bx, by, bz, cx, cy, cz){
+	var cosa = dot(bx, by, bz, cx, cy, cz);
+	var cosb = dot(ax, ay, az, cx, cy, cz);
+	var cosc = dot(ax, ay, az, bx, by, bz);
+	
+	var sina = sqrt(1.0 - cosa*cosa);
+	var sinb = sqrt(1.0 - cosb*cosb);
+	var sinc = sqrt(1.0 - cosc*cosc);
+	
+	var A = acos((cosa - cosb*cosc)/sinb/sinc);
+	var B = acos((cosb - cosc*cosa)/sinc/sina);
+	var C = acos((cosc - cosa*cosb)/sina/sinb);
+	
+	return A + B + C - pi;
+}
+
+console.log(spherical_triangle_area(1, 0, 0, 0, 1, 0, 0, 0, 1) - 4*Math.PI/8)
+var r = Math.sqrt(1.0/3.0)
+console.log(spherical_triangle_area(1, 0, 0, 0, 1, 0, r, r, r) - 4*Math.PI/8/3)
+
+function makeShader(id, shaderType){
+    var shaderNodes = document.getElementById(id);
+    
+    var source = "";
+    for (var node = shaderNodes.firstChild; node; node = node.nextSibling){
+        if (node.nodeType == 3) {
+            source += node.textContent + "\n";
+        }
+    }
+    
+    var shader = gl.createShader(shaderType);
+    
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
+        alert(gl.getShaderInfoLog(shader));
+    }
+    
+    return shader;
+}
+
+var vertexShader   = makeShader("myvertexshader"  , gl.VERTEX_SHADER);
+var fragmentShader = makeShader("myfragmentshader", gl.FRAGMENT_SHADER);
+
+var shaderProgram = gl.createProgram();
+
+gl.attachShader(shaderProgram, vertexShader);
+gl.attachShader(shaderProgram, fragmentShader);
+gl.linkProgram(shaderProgram);
+
+if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)){
+    alert("gl.linkProgram failed");
+}
+
+gl.useProgram(shaderProgram);
+
+var a_position = gl.getAttribLocation(shaderProgram, "a_position");
+var a_texcoord = gl.getAttribLocation(shaderProgram, "a_texcoord");
+var a_normal   = gl.getAttribLocation(shaderProgram, "a_normal");
+var a_color    = gl.getAttribLocation(shaderProgram, "a_color");
+
+var u_modelviewprojection = gl.getUniformLocation(shaderProgram, "u_modelviewprojection");
+
+console.log("a_position:", a_position);
+console.log("a_texcoord:", a_texcoord);
+console.log("a_normal  :", a_normal);
+console.log("a_color   :", a_color);
+
+var vbo = gl.createBuffer();
+
+var mouse = {x:0.0, y:0.0};
+
+var vertexData = new Float32Array(1024*1024*(3 + 4));
+var vertexPosition = 0;
+
+function addVertex(x, y, z, r, g, b, a, u, v, nx, ny, nz){
+	vertexData[vertexPosition++] = x;
+	vertexData[vertexPosition++] = y;
+	vertexData[vertexPosition++] = z;
+	
+	vertexData[vertexPosition++] = r;
+	vertexData[vertexPosition++] = g;
+	vertexData[vertexPosition++] = b;
+	vertexData[vertexPosition++] = a;
+	
+	vertexData[vertexPosition++] = u;
+	vertexData[vertexPosition++] = v;
+	
+	vertexData[vertexPosition++] = nx;
+	vertexData[vertexPosition++] = ny;
+	vertexData[vertexPosition++] = nz;
+}
+
+function addCube(x0, y0, z0, x1, y1, z1, r, g, b, a){
+	var vertices = [
+		x0, y0, z0,
+		x0, y0, z1,
+		x0, y1, z0,
+		x0, y1, z1,
+		x1, y0, z0,
+		x1, y0, z1,
+		x1, y1, z0,
+		x1, y1, z1,
+	];
+	var indices = [
+		// front
+		0, 4, 5,
+		0, 5, 1,
+		// right
+		4, 6, 7,
+		4, 7, 5,
+		// left
+		2, 0, 1,
+		2, 1, 3,
+		// back
+		6, 2, 3,
+		6, 3, 7,
+		// top
+		1, 5, 7,
+		1, 7, 3,
+		// bottom
+		0, 4, 6,
+		0, 6, 2,
+	];
+	var uv = [
+		0, 0, 1, 0, 1, 1,
+		0, 0, 1, 1, 0, 1,
+	]
+	var normals = [
+		0, -1, 0,
+		+1, 0, 0,
+		-1, 0, 0,
+		0, +1, 0,
+		0, 0, +1,
+		0, 0, -1.
+	]
+	for (var i = 0; i < indices.length; i++){
+		var index = indices[i];
+		var x = vertices[index*3 + 0];
+		var y = vertices[index*3 + 1];
+		var z = vertices[index*3 + 2];
+		var uvIndex = (i*2) % uv.length;
+		var u = uv[uvIndex + 0];
+		var v = uv[uvIndex + 1];
+		var normalIndex = Math.floor(i/6)*3;
+		var nx = normals[normalIndex + 0];
+		var ny = normals[normalIndex + 1];
+		var nz = normals[normalIndex + 2];
+		addVertex(x, y, z, r, g, b, a, u, v, nx, ny, nz);
+	}
+}
+
+function addSphere(x, y, z, radius, r, g, b, a){
+	var n = 20
+	var m = 10
+	var positions = new Float32Array((n + 1)*(m + 1)*3)
+	
+	// We don't fill the full positions array
+	// because cos(0) != cos(2*pi) for floating point.
+	// Instead we copy the first row and column.
+	for (var i = 0; i < n; i++){
+		for (var j = 1; j < m; j++){
+			var phi = 2*Math.PI*i/n
+			var theta = Math.PI*j/m
+			
+			var k = (i + (n + 1)*j)*3
+			
+			positions[k + 0] = x + radius*Math.sin(theta)*Math.cos(phi)
+			positions[k + 1] = y + radius*Math.sin(theta)*Math.sin(phi)
+			positions[k + 2] = z + radius*Math.cos(theta)
+		}
+	}
+	
+	for (var i = 0; i < n; i++){
+		var k0 = (i + (n + 1)*0)*3
+		var k1 = (i + (n + 1)*m)*3
+		
+		positions[k0 + 0] = x
+		positions[k0 + 1] = y
+		positions[k0 + 2] = z + radius
+		
+		positions[k1 + 0] = x
+		positions[k1 + 1] = y
+		positions[k1 + 2] = z - radius
+	}
+	
+	for (var j = 0; j <= m; j++){
+		var k0 = (0 + (n + 1)*j)*3
+		var k1 = (n + (n + 1)*j)*3
+		positions[k1 + 0] = positions[k0 + 0]
+		positions[k1 + 1] = positions[k0 + 1]
+		positions[k1 + 2] = positions[k0 + 2]
+	}
+	
+	for (var i = 0; i < n; i++){
+		for (var j = 0; j < m; j++){
+			var k0 = (i + 0 + (n + 1)*(j + 0))*3
+			var k1 = (i + 1 + (n + 1)*(j + 0))*3
+			var k2 = (i + 1 + (n + 1)*(j + 1))*3
+			var k3 = (i + 0 + (n + 1)*(j + 1))*3
+			
+			var x0 = positions[k0 + 0]
+			var y0 = positions[k0 + 1]
+			var z0 = positions[k0 + 2]
+			var x1 = positions[k1 + 0]
+			var y1 = positions[k1 + 1]
+			var z1 = positions[k1 + 2]
+			var x2 = positions[k2 + 0]
+			var y2 = positions[k2 + 1]
+			var z2 = positions[k2 + 2]
+			var x3 = positions[k3 + 0]
+			var y3 = positions[k3 + 1]
+			var z3 = positions[k3 + 2]
+			
+			var u0 = 0
+			var v0 = 0
+			var u1 = 1
+			var v1 = 1
+			
+			addVertex(x0, y0, z0, r, g, b, a, u0, v0, (x0 - x)/r, (y0 - y)/r, (z0 - z)/r)
+			addVertex(x1, y1, z1, r, g, b, a, u1, v0, (x1 - x)/r, (y1 - y)/r, (z1 - z)/r)
+			addVertex(x2, y2, z2, r, g, b, a, u1, v1, (x2 - x)/r, (y2 - y)/r, (z2 - z)/r)
+			
+			addVertex(x0, y0, z0, r, g, b, a, u0, v0, (x0 - x)/r, (y0 - y)/r, (z0 - z)/r)
+			addVertex(x2, y2, z2, r, g, b, a, u1, v1, (x2 - x)/r, (y2 - y)/r, (z2 - z)/r)
+			addVertex(x3, y3, z3, r, g, b, a, u0, v1, (x3 - x)/r, (y3 - y)/r, (z3 - z)/r)
+		}
+	}
+}
+
+function addTriangle(ax, ay, az, bx, by, bz, cx, cy, cz, r, g, b, a, u0, v0, u1, v1, u2, v2){
+	u0 = u1 = u2 = 0
+	v0 = v1 = v2 = 0
+	
+	var ba = vec3.fromValues(bx - ax, by - ay, bz - az)
+	var ca = vec3.fromValues(cx - ax, cy - az, cz - az)
+	var v = vec3.cross(vec3.create(), ca, ba)
+	var n = vec3.normalize(vec3.create(), v)
+	
+	addVertex(ax, ay, az, r, g, b, a, u0, v0, n[0], n[1], n[2]);
+	addVertex(bx, by, bz, r, g, b, a, u1, v1, n[0], n[1], n[2]);
+	addVertex(cx, cy, cz, r, g, b, a, u2, v2, n[0], n[1], n[2]);
+}
+
+var r = 1.0
+addCube(-3*r, -3*r, -r, +3*r, +3*r, +r, 1.0, 1.0, 1.0, 1.0)
+addSphere(0, 0, 2*r, r, 1.0, 1.0, 1.0, 1.0)
+var a = vec3.fromValues(-r, -r, -1.0*r)
+var b = vec3.fromValues(+r, -r, -1.0*r)
+var c = vec3.fromValues(+r, -r, -3.0*r)
+var d = vec3.fromValues(-r, -r, -3.0*r)
+addTriangle(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2], 1.0, 1.0, 1.0, 1.0);
+addTriangle(a[0], a[1], a[2], c[0], c[1], c[2], d[0], d[1], d[2], 1.0, 1.0, 1.0, 1.0);
+
+gl.uniform3f(gl.getUniformLocation(shaderProgram, "a"), a[0], a[1], a[2])
+gl.uniform3f(gl.getUniformLocation(shaderProgram, "b"), b[0], b[1], b[2])
+gl.uniform3f(gl.getUniformLocation(shaderProgram, "c"), c[0], c[1], c[2])
+gl.uniform3f(gl.getUniformLocation(shaderProgram, "d"), d[0], d[1], d[2])
+
+gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+gl.bufferData(gl.ARRAY_BUFFER, vertexData, gl.STATIC_DRAW);
+
+gl.enableVertexAttribArray(a_position);
+gl.enableVertexAttribArray(a_texcoord);
+gl.enableVertexAttribArray(a_color);
+gl.enableVertexAttribArray(a_normal);
+var floatsPerVertex = 12;
+gl.vertexAttribPointer(a_position, 3, gl.FLOAT, false, floatsPerVertex*4, 0*4);
+gl.vertexAttribPointer(a_color   , 4, gl.FLOAT, false, floatsPerVertex*4, 3*4);
+gl.vertexAttribPointer(a_texcoord, 2, gl.FLOAT, false, floatsPerVertex*4, 7*4);
+gl.vertexAttribPointer(a_normal  , 3, gl.FLOAT, false, floatsPerVertex*4, 9*4);
+
+gl.enable(gl.DEPTH_TEST);
+gl.depthFunc(gl.LESS);
+
+gl.enable(gl.BLEND);
+gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+function onDraw(){
+    var width = canvas.width;
+    var height = canvas.height;
+
+	gl.clearColor(0.1, 0.2, 0.3, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    
+    mat4.perspective(projection, Math.PI*0.25, width / height, 0.1, 50.0);
+    
+    // yes, z is up!
+    var up = vec3.fromValues(0, 0, 1);
+    var center = vec3.fromValues(0, 0, 0);
+    var eye = vec3.fromValues(0, 0.01, -10);
+    
+    mat4.lookAt(modelview, eye, center, up);
+    mat4.rotate(modelview, modelview, -2*(mouse.x/ width*2.0 - 1.0)*Math.PI, vec3.fromValues(0, -1, 0));
+    mat4.rotate(modelview, modelview, -2*(mouse.y/height*2.0 - 1.0)*Math.PI, vec3.fromValues(-1, 0, 0));
+    
+    mat4.multiply(modelviewprojection, projection, modelview);
+    
+    gl.uniformMatrix4fv(u_modelviewprojection, false, modelviewprojection);
+
+    gl.drawArrays(gl.TRIANGLES, 0, vertexPosition/floatsPerVertex);
+    
+    window.requestAnimationFrame(onDraw);
+}
+
+window.onmousemove = function(e){
+    var rect = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left;
+    mouse.y = canvas.height - 1 - e.clientY + rect.top;
+}
+
+onDraw();
+
+</script>
+
+</html>

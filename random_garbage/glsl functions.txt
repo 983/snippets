@@ -1,0 +1,137 @@
+float line_dist(vec2 p, vec2 a, vec2 b){
+    vec2 ba = b - a;
+    float u = dot(p - a, ba)/dot(ba, ba);
+    u = clamp(u, 0.0, 1.0);
+    vec2 q = a + u*ba;
+    return distance(p, q);
+}
+
+#define N 100
+
+float find_minimum(){
+    vec2 p = get_p();
+    float r = 1.0;
+    float x0 = p.x - r;
+    float x1 = p.x + r;
+    
+    float t = x0;
+    float dx = (x1 - x0)/float(N);
+    float x = x0;
+    for (int i = 0; i <= N; i++){
+        t = dist2(x) < dist2(t) ? x : t;
+        x += dx;
+    }
+    
+    x0 = t - dx;
+    x1 = t + dx;
+    
+    for (int i = 0; i < 5; i++){
+        float s = 0.61803398874989479*(x1 - x0);
+        float new_x0 = x1 - s;
+        float new_x1 = x0 + s;
+        bool x0_smaller = dist2(new_x0) < dist2(new_x1);
+        x0 = x0_smaller ? x0 : new_x0;
+        x1 = x0_smaller ? new_x1 : x1;
+    }
+    
+    t = 0.5*(x0 + x1);
+    
+    float d = dist2(t);
+    return sqrt(d);
+}
+
+float det(vec2 a, vec2 b){
+    return a.x*b.y - a.y*b.x;
+}
+
+vec2 left(vec2 v){
+    return vec2(-v.y, v.x);
+}
+
+bool is_left_of(vec2 p, vec2 a, vec2 b){
+    return det(p - a, b - a) < 0.0;
+}
+
+float dist_arc(vec2 p, vec2 a, vec2 b, vec2 c){
+    float denominator = det(a, b) + det(b, c) + det(c, a);
+    
+    vec2 v = dot(a, a)*(c - b) + dot(b, b)*(a - c) + dot(c, c)*(b - a);
+    
+    vec2 center = 0.5/denominator * left(v);
+    
+    float radius = distance(a, center);
+    
+    float d = abs(distance(p, center) - radius);
+    
+    return d;
+}
+
+int solveCubic(float a, float b, float c, out float r0, out float r1, out float r2){
+	float p = b - a*a / 3.;
+	float q = a * (2.*a*a - 9.*b) / 27. + c;
+	float p3 = p*p*p;
+	float d = q*q + 4.*p3 / 27.;
+	float offset = -a / 3.;
+	if(d >= 0.) { // Single solution
+		float z = sqrt(d);
+		float u = (-q + z) / 2.;
+		float v = (-q - z) / 2.;
+		u = cuberoot(u);
+		v = cuberoot(v);
+		r0 = offset + u + v;
+		return 1;
+	}
+	float u = sqrt(-p / 3.);
+	float v = acos(-sqrt( -27. / p3) * q / .2) / 3.;
+	float m = cos(v), n = sin(v)*1.732050808;
+	r0 = offset + u * (m + m);
+	r1 = offset - u * (n + m);
+	r2 = offset + u * (n - m);
+	return 3;
+}
+
+vec2 quadratic(vec2 p0, vec2 p1, vec2 p2, float t){
+    float s = 1.0 - t;
+	return s*s*p0 + 2.0*s*t*p1 + t*t*p2;
+}
+
+float dist_quadratic(vec2 p, vec2 a, vec2 b, vec2 c){
+    
+    float d = 1e5;
+    /*
+    vec2 a = p0;
+    for (int i = 1; i <= 10; i++){
+        float t = float(i)*0.1;
+        vec2 b = quadratic(p0, p1, p2, t);
+        d = min(d, line_dist(p, a, b));
+        a = b;
+    }
+
+	return d;
+*/
+
+    float x = p.x;
+    float y = p.y;
+    
+    float c0 = 4.0*a.x*a.x - 16.0*a.x*b.x + 8.0*a.x*c.x + 4.0*a.y*a.y - 16.0*a.y*b.y + 8.0*a.y*c.y + 16.0*b.x*b.x - 16.0*b.x*c.x + 16.0*b.y*b.y - 16.0*b.y*c.y + 4.0*c.x*c.x + 4.0*c.y*c.y;
+	float c1 = -12.0*a.x*a.x + 36.0*a.x*b.x - 12.0*a.x*c.x - 12.0*a.y*a.y + 36.0*a.y*b.y - 12.0*a.y*c.y - 24.0*b.x*b.x + 12.0*b.x*c.x - 24.0*b.y*b.y + 12.0*b.y*c.y;
+	float c2 = 12.0*a.x*a.x - 24.0*a.x*b.x + 4.0*a.x*c.x - 4.0*a.x*x + 12.0*a.y*a.y - 24.0*a.y*b.y + 4.0*a.y*c.y - 4.0*a.y*y + 8.0*b.x*b.x + 8.0*b.x*x + 8.0*b.y*b.y + 8.0*b.y*y - 4.0*c.x*x - 4.0*c.y*y;
+	float c3 = -4.0*a.x*a.x + 4.0*a.x*b.x + 4.0*a.x*x - 4.0*a.y*a.y + 4.0*a.y*b.y + 4.0*a.y*y - 4.0*b.x*x - 4.0*b.y*y;
+    
+    c1 /= c0;
+    c2 /= c0;
+	c3 /= c0;
+    
+    float t0, t1, t2;
+    int n = solveCubic(c0, c1, c2, t0, t1, t2);
+    
+    if (n == 1){
+        d = distance(p, quadratic(a, b, c, t0));
+    }else{
+        d = min(d, distance(p, quadratic(a, b, c, t0)));
+        d = min(d, distance(p, quadratic(a, b, c, t1)));
+        d = min(d, distance(p, quadratic(a, b, c, t2)));
+    }
+    
+    return d;
+}
