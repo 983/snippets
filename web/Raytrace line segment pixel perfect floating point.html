@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	
+	<title>Raytrace line segment pixel perfect floating point</title></head>
+<body>
+<canvas id="canvas" width="800" height="800" style="border:1px solid #000000;"></canvas>
+<script>
+"use strict";
+var canvas = document.getElementById("canvas");
+var context = canvas.getContext("2d");
+var width = canvas.width;
+var height = canvas.height;
+
+var nx = 51;
+var ny = 51;
+
+var tilewidth  = width  / nx;
+var tileheight = height / ny;
+
+var tiles = new Uint8Array(nx*ny);
+
+var x0 = 0.5 * nx;
+var y0 = 0.5 * ny;
+
+function getTile(x, y){
+	if (x < 0 || y < 0 || x >= nx || y >= ny) return 1;
+	return tiles[x + y*nx];
+}
+
+function setTile(x, y, value){
+	if (x < 0 || y < 0 || x >= nx || y >= ny) return;
+	tiles[x + y*nx] = value;
+}
+
+for (var i = 0; i < nx*ny; i++){
+	if (Math.random() < 0.05){
+		tiles[i] = 1;
+	}
+}
+
+function forPixelOnCircle(x0, y0, radius, func){
+	x0 = x0|0;
+	y0 = y0|0;
+	radius = radius|0;
+	
+	var x = radius;
+	var y = 0;
+	var decisionOver2 = 1 - x;
+
+	while (y <= x){
+		func( x + x0,  y + y0);
+		func( y + x0,  x + y0);
+		func(-x + x0,  y + y0);
+		func(-y + x0,  x + y0);
+		func(-x + x0, -y + y0);
+		func(-y + x0, -x + y0);
+		func( x + x0, -y + y0);
+		func( y + x0, -x + y0);
+		y++;
+		if (decisionOver2<=0) {
+		   decisionOver2 += 2 * y + 1;
+		}else{
+			x--;
+			decisionOver2 += 2 * (y - x) + 1;
+		}
+	}
+}
+
+forPixelOnCircle(x0, y0, 15, function(x, y){
+	setTile(x, y, 1);
+});
+
+// func(ix, iy, x, y, t)
+// ix and iy are the bottom left integer coordinates of a cell
+// x and y are the floating point coordinates where the ray enters the cell
+// t is the distance traveled from (x0, y0) to (x, y)
+// if func returns anything, the function ends
+function forPixelOnLineSegment(x0, y0, x1, y1, func){
+	var dx = x1 - x0;
+	var dy = y1 - y0;
+	
+	var len = Math.sqrt(dx*dx + dy*dy);
+	
+	if (len == 0) return 0;
+	
+	var vx = dx / len;
+	var vy = dy / len;
+	
+	var ix = Math.floor(x0);
+	var iy = Math.floor(y0);
+	var sx = dx >= 0 ? 1 : -1;
+	var sy = dy >= 0 ? 1 : -1;
+	var tx = (ix - x0 + (dx >= 0 ? 1 : 0))/vx;
+	var ty = (iy - y0 + (dy >= 0 ? 1 : 0))/vy;
+	var stx = sx/vx;
+	var sty = sy/vy;
+	
+	while (true){
+		var t = Math.min(tx, ty);
+		
+		if (t >= len) return len;
+		
+		if (tx < ty){
+			tx += stx;
+			ix += sx;
+		}else{
+			ty += sty;
+			iy += sy;
+		}
+		
+		var x = x0 + vx*t;
+		var y = y0 + vy*t;
+		
+		if (func(ix, iy, x, y, t)) return t;
+	}
+}
+
+function redraw(){
+	context.fillStyle = "white";
+	context.fillRect(0, 0, width, height);
+	
+	context.fillStyle = "gray";
+	context.beginPath();
+	for (var y = 0; y < ny; y++) for (var x = 0; x < nx; x++){
+		if (getTile(x, y) != 0){
+			context.fillRect(x*tilewidth, y*tileheight, tilewidth, tileheight);
+		}
+	}
+	
+	var radius = 100.0;
+	var n = 1000;
+	
+	context.strokeStyle = "green";
+	context.beginPath();
+	
+	for (var i = 0; i < n; i++){
+		var angle = 2*Math.PI*i/n;
+		var x1 = x0 + Math.cos(angle)*radius;
+		var y1 = y0 + Math.sin(angle)*radius;
+		
+		var xEnd = x1;
+		var yEnd = y1;
+		forPixelOnLineSegment(x0, y0, x1, y1, function(ix, iy, x, y, t){
+			if (getTile(ix, iy) != 0){
+				xEnd = x;
+				yEnd = y;
+				return true;
+			}
+		});
+		context.moveTo(x0*tilewidth, y0*tileheight);
+		context.lineTo(xEnd*tilewidth, yEnd*tileheight);
+	};
+	context.stroke();
+
+	context.strokeStyle = "black";
+	context.beginPath();
+	for (var x = 0; x < width; x += tilewidth){
+		context.moveTo(x, 0);
+		context.lineTo(x, height);
+	}
+	for (var y = 0; y < height; y += tileheight){
+		context.moveTo(0, y);
+		context.lineTo(width, y);
+	}
+	context.stroke();
+}
+
+redraw();
+
+window.onmousemove = function(e){
+	var rect = canvas.getBoundingClientRect();
+	var x = e.clientX - rect.left;
+	var y = e.clientY - rect.top;
+	x0 = x / tilewidth;
+	y0 = y / tileheight;
+	redraw();
+}
+
+</script>
+
+</body></html>
