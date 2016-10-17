@@ -3,6 +3,7 @@
 #include "my_swap.hpp"
 #include <assert.h>
 #include <stdlib.h>
+#include <new>
 
 template <typename T>
 struct Vector {
@@ -57,7 +58,7 @@ struct Vector {
         }
     }
 
-    Vector(size_t new_size, const T &value):
+    Vector(size_t new_size, const T &value = T()):
         _size(new_size),
         _capacity(new_size)
     {
@@ -93,7 +94,8 @@ struct Vector {
             reserve(size()*5/2 + 1);
         }
         assert(size() < capacity());
-        new(data() + _size++)T(value);
+        T *ptr = data() + _size++;
+        new(ptr)T(value);
     }
 
     T pop(){
@@ -103,14 +105,15 @@ struct Vector {
         return value;
     }
 
-    ~Vector(){
+    void clear(){
         for (size_t i = 0; i < size(); i++){
             at(i).~T();
         }
-        free(_data);
+        _size = 0;
     }
 
-    void clear(){
-        _size = 0;
+    ~Vector(){
+        clear();
+        free(_data);
     }
 };
