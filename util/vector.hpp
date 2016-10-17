@@ -1,7 +1,7 @@
 #pragma once
 
 #include "my_swap.hpp"
-#include <assert.h>
+#include "my_assert.hpp"
 #include <stdlib.h>
 #include <new>
 
@@ -29,8 +29,8 @@ struct Vector {
 
           T* data        (        )       { return _data; }
     const T* data        (        ) const { return _data; }
-          T& at          (size_t i)       { assert(i < size()); return data()[i]; }
-    const T& at          (size_t i) const { assert(i < size()); return data()[i]; }
+          T& at          (size_t i)       { my_assert(i < size()); return data()[i]; }
+    const T& at          (size_t i) const { my_assert(i < size()); return data()[i]; }
           T& operator [] (size_t i)       { return at(i); }
     const T& operator [] (size_t i) const { return at(i); }
           T& front       (        )       { return at(0); }
@@ -50,13 +50,16 @@ struct Vector {
         _size(new_size),
         _capacity(new_capacity)
     {
-        assert(size() <= capacity());
+        my_assert(size() <= capacity());
         _data = (T*)malloc(sizeof(T)*capacity());
 
         for (size_t i = 0; i < size(); i++){
             new(&at(i))T(values[i]);
         }
     }
+
+    Vector(const T *values, size_t new_size):
+        Vector(values, new_size, new_size){}
 
     Vector(size_t new_size, const T &value = T()):
         _size(new_size),
@@ -72,6 +75,12 @@ struct Vector {
     Vector(const Vector &other):
         Vector(other.data(), other.size(), other.size()){}
 
+    Vector& operator = (const Vector &other){
+        Vector tmp(other);
+        swap(tmp);
+        return *this;
+    }
+
     void swap(Vector &other){
         my_swap(_data, other._data);
         my_swap(_size, other._size);
@@ -84,21 +93,23 @@ struct Vector {
         swap(temp);
     }
 
-    void resize(size_t new_size){
+    void resize(size_t new_size, const T &value = T()){
         reserve(new_size);
-        _size = new_size;
+        while (size() < new_size) push(value);
     }
 
     void push(const T &value){
         if (size() >= capacity()){
             reserve(size()*5/2 + 1);
         }
-        assert(size() < capacity());
-        T *ptr = data() + _size++;
+        my_assert(size() < capacity());
+        T *ptr = data() + _size;
         new(ptr)T(value);
+        _size++;
     }
 
     T pop(){
+        my_assert(!empty());
         T value = back();
         back().~T();
         _size--;
@@ -106,14 +117,12 @@ struct Vector {
     }
 
     void clear(){
-        for (size_t i = 0; i < size(); i++){
-            at(i).~T();
-        }
-        _size = 0;
+        while (!empty()) pop();
     }
 
     ~Vector(){
         clear();
         free(_data);
+        _data = NULL;
     }
 };
