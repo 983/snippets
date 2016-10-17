@@ -53,8 +53,7 @@ struct Vector {
         _data = (T*)malloc(sizeof(T)*capacity());
 
         for (size_t i = 0; i < size(); i++){
-            at(i) = values[i];
-            //new(&at(i))T(values[i]);
+            new(&at(i))T(values[i]);
         }
     }
 
@@ -65,8 +64,7 @@ struct Vector {
         _data = (T*)malloc(sizeof(T)*capacity());
 
         for (size_t i = 0; i < size(); i++){
-            at(i) = value;
-            //new(&at(i))T(value);
+            new(&at(i))T(value);
         }
     }
 
@@ -95,8 +93,7 @@ struct Vector {
             reserve(size()*5/2 + 1);
         }
         assert(size() < capacity());
-        data()[_size++] = value;
-        //new(data() + _size++)T(value);
+        new(data() + _size++)T(value);
     }
 
     T pop(){
