@@ -125,4 +125,14 @@ struct Vector {
         free(_data);
         _data = NULL;
     }
+
+    bool operator == (const Vector &other) const {
+        if (size() != other.size()) return false;
+        for (size_t i = 0; i < size(); i++) if (at(i) != other[i]) return false;
+        return true;
+    }
+
+    bool operator != (const Vector &other) const {
+        return !(*this == other);
+    }
 };
