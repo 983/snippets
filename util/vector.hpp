@@ -1,5 +1,6 @@
 #pragma once
 
+#include "int.hpp"
 #include "my_swap.hpp"
 #include "my_assert.hpp"
 #include <stdlib.h>
@@ -12,14 +13,14 @@ struct Vector {
     typedef const T* const_iterator;
 
     T *_data;
-    size_t _size;
-    size_t _capacity;
+    u32 _size;
+    u32 _capacity;
 
-    size_t size() const {
+    u32 size() const {
         return _size;
     }
 
-    size_t capacity() const {
+    u32 capacity() const {
         return _capacity;
     }
 
@@ -29,10 +30,10 @@ struct Vector {
 
           T* data        (        )       { return _data; }
     const T* data        (        ) const { return _data; }
-          T& at          (size_t i)       { my_assert(i < size()); return data()[i]; }
-    const T& at          (size_t i) const { my_assert(i < size()); return data()[i]; }
-          T& operator [] (size_t i)       { return at(i); }
-    const T& operator [] (size_t i) const { return at(i); }
+          T& at          (u32 i)       { my_assert(i < size()); return data()[i]; }
+    const T& at          (u32 i) const { my_assert(i < size()); return data()[i]; }
+          T& operator [] (u32 i)       { return at(i); }
+    const T& operator [] (u32 i) const { return at(i); }
           T& front       (        )       { return at(0); }
     const T& front       (        ) const { return at(0); }
           T& back        (        )       { return at(size() - 1); }
@@ -46,28 +47,28 @@ struct Vector {
 
     Vector(): _data(NULL), _size(0), _capacity(0){}
 
-    Vector(const T *values, size_t new_size, size_t new_capacity):
+    Vector(const T *values, u32 new_size, u32 new_capacity):
         _size(new_size),
         _capacity(new_capacity)
     {
         my_assert(size() <= capacity());
         _data = (T*)malloc(sizeof(T)*capacity());
 
-        for (size_t i = 0; i < size(); i++){
+        for (u32 i = 0; i < size(); i++){
             new(&at(i))T(values[i]);
         }
     }
 
-    Vector(const T *values, size_t new_size):
+    Vector(const T *values, u32 new_size):
         Vector(values, new_size, new_size){}
 
-    Vector(size_t new_size, const T &value = T()):
+    Vector(u32 new_size, const T &value = T()):
         _size(new_size),
         _capacity(new_size)
     {
         _data = (T*)malloc(sizeof(T)*capacity());
 
-        for (size_t i = 0; i < size(); i++){
+        for (u32 i = 0; i < size(); i++){
             new(&at(i))T(value);
         }
     }
@@ -87,13 +88,13 @@ struct Vector {
         my_swap(_capacity, other._capacity);
     }
 
-    void reserve(size_t required_capacity){
+    void reserve(u32 required_capacity){
         if (capacity() >= required_capacity) return;
         Vector temp(data(), size(), required_capacity);
         swap(temp);
     }
 
-    void resize(size_t new_size, const T &value = T()){
+    void resize(u32 new_size, const T &value = T()){
         reserve(new_size);
         while (size() < new_size) push(value);
     }
@@ -128,7 +129,7 @@ struct Vector {
 
     bool operator == (const Vector &other) const {
         if (size() != other.size()) return false;
-        for (size_t i = 0; i < size(); i++) if (at(i) != other[i]) return false;
+        for (u32 i = 0; i < size(); i++) if (at(i) != other[i]) return false;
         return true;
     }
 

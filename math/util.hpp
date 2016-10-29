@@ -52,5 +52,8 @@ T smoothstep(const T &edge0, const T &edge1, const T &x){
     return t * t * (T(3) - T(2) * t);
 }
 
+template <typename T> const T& my_min(const T &a, const T &b){ return a < b ? a : b; }
+template <typename T> const T& my_max(const T &a, const T &b){ return a > b ? a : b; }
+
 #define PI_F 3.1415926535897932384626433832795f
 #define PI_D 3.1415926535897932384626433832795

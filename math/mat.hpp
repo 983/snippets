@@ -231,12 +231,12 @@ Mat<M, N, T> reflect(const Mat<M, N, T> &v, const Mat<M, N, T> &normal){
 
 template <typename T>
 bool is_left_of(const Mat<2, 1, T> &p, const Mat<2, 1, T> &a, const Mat<2, 1, T> &b){
-    return cross(b - a, p - a) > T(0);
+    return det(b - a, p - a) > T(0);
 }
 
 template <typename T>
 bool is_right_of(const Mat<2, 1, T> &p, const Mat<2, 1, T> &a, const Mat<2, 1, T> &b){
-    return cross(b - a, p - a) < T(0);
+    return det(b - a, p - a) < T(0);
 }
 
 template <typename T>
