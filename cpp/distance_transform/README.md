@@ -1,0 +1,1 @@
+Many distance transforms calculate the distance to the closest point. This distance transform calculates the closest point instead. This is sometimes more convenient because it is easy to calculate the distance given the closest point but hard to find the closest point while only given the distance.
