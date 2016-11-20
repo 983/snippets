@@ -76,7 +76,6 @@ def column(x):
     return x.reshape((len(x), 1))
 
 class SoftmaxCrossEntropyLoss(object):
-
     def __init__(self, logits_node, labels_node):
         self.logits_node = logits_node
         self.labels_node = labels_node
