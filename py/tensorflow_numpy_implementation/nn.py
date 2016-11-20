@@ -20,6 +20,7 @@ class Weight(object):
         return self.W
 
     def backward(self, gradient):
+        # adam optimizer
         learning_rate = 0.001
         beta1 = 0.9
         beta2 = 0.999
@@ -108,7 +109,7 @@ class Tanh(object):
 
     def backward(self, d):
         self.node_X.backward(self.derivative*d)
-"""
+
 class SquareLoss(object):
     def __init__(self, node_X, node_Y):
         self.node_X = node_X
@@ -123,4 +124,3 @@ class SquareLoss(object):
 
     def backward(self):
         self.node_X.backward(self.derivative)
-"""
