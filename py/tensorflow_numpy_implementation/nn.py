@@ -1,62 +1,7 @@
 import numpy as np
 
-def identity(x):
-    return x
-
-def sum_rows(X):
-    return np.sum(X, 0)
-
-def sum_cols(X):
-    return np.sum(X, 1)
-
-def broadcast_undo_functions(A, B):
-    if A.shape[0] != B.shape[0]:
-        if A.shape[0] == 1:
-            return (sum_rows, identity)
-        elif B.shape[0] == 1:
-            return (identity, sum_rows)
-        else:
-            raise Exception("Can not broadcast", A, B)
-    elif A.shape[1] != B.shape[1]:
-        if A.shape[1] == 1:
-            return (sum_cols, identity)
-        elif B.shape[1] == 1:
-            return (identity, sum_cols)
-        else:
-            raise Exception("Can not broadcast", A, B)
-    else:
-        return (identity, identity)
-
-def sigmoid(x):
-    return 1.0/(1.0 + np.exp(-x))
-
-def sigmoid_arg_derivative(y):
-    # derivative of sigmoid, assuming y = sigmoid(x)
-    return y*(1.0 - y)
-
-def sigmoid_derivative(x):
-    return sigmoid_arg_derivative(sigmoid(x))
-
-def mostly_truncated_normal(shape, stddev):
-    W = stddev*np.random.randn(*shape)
-    for _ in range(2):
-        too_large = np.abs(W) > 2*stddev
-        W[too_large] = stddev*np.random.randn(*shape)[too_large]
-    return W
-
-class Weight(object):
-    def __init__(self, m, n):
-        self.W = mostly_truncated_normal((m, n), 1.0/np.sqrt(m))
-        self.learning_rate = 0.5
-
-    def forward(self):
-        return self.W
-
-    def backward(self, d):
-        self.W -= self.learning_rate*d
-
 class Constant(object):
-    def __init__(self, X):
+    def __init__(self, X = None):
         self.X = X
 
     def forward(self):
@@ -65,56 +10,106 @@ class Constant(object):
     def backward(self, d):
         pass
 
-class Mul(object):
-    def __init__(self, node_X, node_W):
+class Weight(object):
+    def __init__(self, shape, stddev=1.0):
+        self.W = np.random.normal(size=shape, scale=stddev).astype(np.float32)
+        self.m = np.zeros(shape, dtype=np.float32)
+        self.v = np.zeros(shape, dtype=np.float32)
+
+    def forward(self):
+        return self.W
+
+    def backward(self, gradient):
+        learning_rate = 0.001
+        beta1 = 0.9
+        beta2 = 0.999
+        eps = 1e-8
+
+        self.m = beta1*self.m + (1 - beta1)*gradient
+        self.v = beta2*self.v + (1 - beta2)*gradient**2
+        self.W -= learning_rate*self.m/(np.sqrt(self.v) + eps)
+
+class LinearLayer(object):
+    def __init__(self, node_X, shape):
+        stddev = 1.0/np.sqrt(shape[1])
+        
         self.node_X = node_X
-        self.node_W = node_W
+        self.node_W = Weight(shape, stddev)
+        self.node_b = Weight((1, shape[1]))
+        
         self.X = None
+        self.W = None
+        self.b = None
 
     def forward(self):
         X = self.X = self.node_X.forward()
         W = self.W = self.node_W.forward()
-        Y = X.dot(W)
-        return Y
+        b = self.b = self.node_b.forward()
+        
+        return np.dot(X, W) + b
 
-    def backward(self, d):
-        self.node_X.backward(d.dot(self.W.T))
-        self.node_W.backward(self.X.T.dot(d))
+    def backward(self, gradient):
+        gradient_X = np.dot(gradient, self.W.T)
+        gradient_W = np.dot(self.X.T, gradient)
+        gradient_b = np.mean(gradient, axis=0)
 
-class Add(object):
-    def __init__(self, node_X0, node_X1):
-        self.node_X0 = node_X0
-        self.node_X1 = node_X1
-        self.undo = None
+        self.node_X.backward(gradient_X)
+        self.node_W.backward(gradient_W)
+        self.node_b.backward(gradient_b)
 
-    def forward(self):
-        X0 = self.node_X0.forward()
-        X1 = self.node_X1.forward()
-        Y = X0 + X1
-        self.undo = broadcast_undo_functions(X0, X1)
-        return Y
-
-    def backward(self, d):
-        undo_X0, undo_X1 = self.undo
-        X0 = undo_X0(d)
-        X1 = undo_X1(d)
-        self.node_X0.backward(X0)
-        self.node_X1.backward(X1)
-
-class Sigmoid(object):
+class Relu(object):
     def __init__(self, node_X):
         self.node_X = node_X
         self.derivative = None
 
     def forward(self):
-        Y = sigmoid(self.node_X.forward())
-        self.derivative = sigmoid_arg_derivative(Y)
+        X = self.node_X.forward()
+        leak = 0.01
+        self.derivative = (X >= 0.0).astype(np.float32)*(1.0 - leak) + leak
+        return np.maximum(X, leak*X)
+
+    def backward(self, gradient):
+        self.node_X.backward(self.derivative*gradient)
+
+def column(x):
+    return x.reshape((len(x), 1))
+
+class SoftmaxCrossEntropyLoss(object):
+
+    def __init__(self, logits_node, labels_node):
+        self.logits_node = logits_node
+        self.labels_node = labels_node
+        self.gradient = None
+
+    def forward(self):
+        logits = self.logits_node.forward()
+        labels = self.labels_node.forward()
+        
+        d = logits - column(np.max(logits, 1))
+        exp_d = np.exp(d)
+        sum_exp_d = column(np.sum(exp_d, 1))
+        loss = -np.mean(np.sum(labels*(d - np.log(sum_exp_d)), 1))
+        self.gradient = (exp_d / sum_exp_d - labels)/len(labels)
+        return loss
+
+    def backward(self):
+        self.logits_node.backward(self.gradient)
+
+class Tanh(object):
+    def __init__(self, node_X):
+        self.node_X = node_X
+        self.derivative = None
+
+    def forward(self):
+        X = self.node_X.forward()
+        Y = np.tanh(X)
+        self.derivative = 1.0 - Y*Y
         return Y
 
     def backward(self, d):
         self.node_X.backward(self.derivative*d)
-
-class Loss(object):
+"""
+class SquareLoss(object):
     def __init__(self, node_X, node_Y):
         self.node_X = node_X
         self.node_Y = node_Y
@@ -126,5 +121,6 @@ class Loss(object):
         d = self.derivative = X - Y
         return 0.5*d.T.dot(d)[0,0]
 
-    def backward(self, d = 1.0):
-        self.node_X.backward(d*self.derivative)
+    def backward(self):
+        self.node_X.backward(self.derivative)
+"""
