@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Game</title>
+<style>
+canvas {
+	border: 1px solid black;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1024" height="512"></canvas>
+
+<textarea id="node"></textarea>
+
+
+<h1>Controls</h1>
+
+<table>
+<tr><td>Mouse wheel</td><td>Zoom</td></tr>
+<tr><td>Left click on canvas</td><td>Create node</td></tr>
+<tr><td>Left click on node</td><td>Select node</td></tr>
+<tr><td>Right click on canvas</td><td>Create node</td></tr>
+<tr><td>Right click on node</td><td>Connect or deconnect selected node</td></tr>
+<tr><td>Delete key</td><td>Delete node</td></tr>
+<tr><td>Right mouse button drag</td><td>Move view</td></tr>
+<tr><td>Left mouse button drag</td><td>Move view</td></tr>
+</table>
+
+
+<script>
+var canvas = document.getElementById("canvas");
+var nodeInput = document.getElementById("node")
+var context = canvas.getContext("2d");
+
+window.oncontextmenu = function(e){
+	e.preventDefault()
+}
+
+Array.prototype.contains = function(value){
+	var n = this.length
+	for (var i = 0; i < n; i++){
+		if (this[i] == value) return true
+	}
+	return false
+}
+
+Array.prototype.remove = function(value){
+	for (var i = 0; i < this.length; i++){
+		if (this[i] === value){
+			this[i] = this[this.length - 1]
+			this.pop()
+			i--
+		}
+	}
+}
+
+window.onkeydown = function(e){
+	if (e.keyCode == 46){
+		deleteSelected()
+	}
+}
+
+window.onkeyup = function(e){
+}
+
+function drawCircle(x, y, radius){
+	context.beginPath();
+	context.arc(x, y, radius, 0, 2*Math.PI);
+	context.fill();
+	context.stroke();
+}
+
+function clamp(x, a, b){
+	if (x < a) return a
+	if (x > b) return b
+	return x 
+}
+
+function rgba(r, g, b, a){
+	r = clamp(r*256|0, 0, 255)
+	g = clamp(g*256|0, 0, 255)
+	b = clamp(b*256|0, 0, 255)
+	a = clamp(a, 0, 1)
+	return "rgba(" + r + ", " + g + ", " + b + ", " + a + ")"
+}
+
+var nodes = []
+var view = {scale: 1, x: 0, y: 0}
+var selectedNode = null
+var fontSize = 32
+var padding = 16
+var gridSize = 64
+var connectorRadius = 8
+
+function selectNode(node){
+	selectedNode = node
+	nodeInput.value = node.text
+	// TODO do this properly without delayed focus setting
+	setTimeout(function(){
+		nodeInput.focus()
+		nodeInput.select()
+	}, 50)
+}
+
+function deselectNode(){
+	selectedNode = null
+}
+
+function nodeWidth(node){
+	return context.measureText(node.text).width + 2*padding
+}
+
+function nodeHeight(node){
+	return fontSize + 2*padding
+}
+
+function snapToGrid(x){
+	return Math.round(x/gridSize)*gridSize
+}
+
+function nodeMove(node, x, y){
+	node.x = snapToGrid(x)
+	node.y = snapToGrid(y)
+}
+
+function createNode(x, y){
+	var id = nodes.length
+	
+	var node = {
+		x: 0,
+		y: 0,
+		id: id,
+		text: "",
+		targets: [],
+	}
+	
+	nodeMove(node, x, y)
+	nodes.push(node)
+	return node
+}
+
+function forEachNode(f){
+	for (var i = 0; i < nodes.length; i++){
+		var node = nodes[i]
+		if (!node) continue
+		var result = f(node)
+		if (result !== undefined) return result
+	}
+}
+
+function deleteSelected(){
+	if (!selectedNode) return
+	
+	nodes[selectedNode.id] = null
+	
+	forEachNode(function(node){
+		node.targets.remove(selectedNode.id)
+	})
+	
+	deselectNode()
+}
+
+function drawNode(node){
+	var x0 = node.x - nodeWidth(node)*0.5
+	var y0 = node.y - nodeHeight(node)*0.5
+	var x1 = node.x + nodeWidth(node)*0.5
+	var y1 = node.y + nodeHeight(node)*0.5
+	
+	context.beginPath()
+	context.moveTo(x0, y0)
+	context.lineTo(x1, y0)
+	context.lineTo(x1, y1)
+	context.lineTo(x0, y1)
+	context.closePath()
+	context.fill()
+	context.stroke()
+}
+
+function drawGrid(gridSize, n){
+	context.beginPath()
+	for (var i = -n; i <= n; i++){
+		var x = i*gridSize
+		var y = i*gridSize
+		context.moveTo(x, gridSize*-n)
+		context.lineTo(x, gridSize*+n)
+		context.moveTo(gridSize*-n, y)
+		context.lineTo(gridSize*+n, y)
+	}
+	context.stroke()
+}
+
+function redraw(){
+	// clear screen
+	context.setTransform(1, 0, 0, 1, 0, 0)
+	context.fillStyle = rgba(0.95, 0.95, 0.95, 1.0)
+	context.fillRect(0, 0, canvas.width, canvas.height)
+	context.setTransform(view.scale, 0, 0, view.scale, view.x, view.y)
+	
+	context.lineWidth = 1
+	context.strokeStyle = "#cccccc"
+	drawGrid(gridSize, 5*20)
+	context.strokeStyle = "#555555"
+	drawGrid(gridSize*5, 20)
+	
+	context.lineWidth = 3
+	
+	// draw node circles
+	context.strokeStyle = "#000000"
+	context.fillStyle = rgba(0.9, 0.9, 0.9, 1)
+	
+	forEachNode(function(node){
+		drawNode(node)
+	})
+	
+	// draw selected node
+	if (selectedNode){
+		context.fillStyle = rgba(1, 1, 0, 1)
+		drawNode(selectedNode)
+	}
+	
+	// draw node descriptions
+	context.font = fontSize + "px Arial";
+	context.fillStyle = "black"
+	forEachNode(function(node){
+		var width = context.measureText(node.text).width
+		var x0 = node.x - nodeWidth(node)*0.5 + padding
+		var y0 = node.y + fontSize*0.5
+		context.fillText(node.text, x0, y0)
+	})
+	
+	// draw connections
+	context.strokeStyle = "#000000"
+	forEachNode(function(source){
+		for (var i = 0; i < source.targets.length; i++){
+			var target = nodes[source.targets[i]]
+			var x0 = source.x + nodeWidth(source)*0.5
+			var y0 = source.y
+			
+			var x1 = target.x - nodeWidth(target)*0.5
+			var y1 = target.y
+			
+			context.beginPath();
+			var r = 0.5*nodeHeight(source)
+			
+			if (source === target){
+				var y = source.y - 2*r
+				context.arc(x0, y0 - r, r, 0.5*Math.PI, 1.5*Math.PI, true)
+				context.arc(x1, y0 - r, r, 1.5*Math.PI, 0.5*Math.PI, true)
+			}else{
+				var x = 0.5*(x0 + x1)
+				if (source.x < target.x){
+					context.moveTo(x0, y0)
+					context.bezierCurveTo(x, y0, x, y1, x1, y1)
+					context.stroke();
+				}else{
+					var y0r = y0 + 2*r
+					var y1r = y1 + 2*r
+					
+					context.moveTo(x0, y0)
+					context.arc(x0, y0 + r, r, 1.5*Math.PI, 0.5*Math.PI, false)
+					
+					var x2 = x0 - nodeWidth(source)
+					var x3 = x1 + nodeWidth(target)
+					var x = 0.5*(x2 + x3)
+					
+					context.lineTo(x2, y0r)
+					context.bezierCurveTo(x, y0r, x, y1r, x3, y1r)
+					
+					context.arc(x1, y1 + r, r, 0.5*Math.PI, 1.5*Math.PI, false)
+					
+					context.lineTo(x1, y1)
+				}
+			}
+			context.stroke();
+		}
+	})
+	
+	// draw connector dots
+	context.strokeStyle = "#000000"
+	context.fillStyle = "#ffffff"
+	forEachNode(function(node){
+		var x0 = node.x - nodeWidth(node)*0.5
+		var x1 = node.x + nodeWidth(node)*0.5
+		
+		drawCircle(x0, node.y, connectorRadius)
+		drawCircle(x1, node.y, connectorRadius)
+	})
+	
+	requestAnimationFrame(redraw)
+}
+
+var old_x = 0
+var old_y = 0
+
+function getMouse(e){
+    var rect = canvas.getBoundingClientRect();
+    var x = e.clientX - rect.left
+    var y = e.clientY - rect.top
+    var dx = x - old_x
+    var dy = y - old_y
+    old_x = x
+    old_y = y
+    
+	return {
+		x: (x - view.x)/view.scale,
+		y: (y - view.y)/view.scale,
+		dx: dx/view.scale,
+		dy: dy/view.scale,
+	}
+}
+
+function translateView(dx, dy){
+	view.x += dx*view.scale
+	view.y += dy*view.scale
+}
+
+canvas.onmousemove = function(e){
+	var mouse = getMouse(e)
+	
+	// drag selected node
+	if (e.buttons == 1 && selectedNode){
+		nodeMove(selectedNode, mouse.x, mouse.y)
+	}
+	
+	// move view on drag
+	if (e.buttons == 2){
+		translateView(mouse.dx, mouse.dy)
+	}
+}
+
+function getNodeAt(x, y){
+	return forEachNode(function(node){
+		var x0 = node.x - nodeWidth(node)*0.5
+		var y0 = node.y - nodeHeight(node)*0.5
+		var x1 = node.x + nodeWidth(node)*0.5
+		var y1 = node.y + nodeHeight(node)*0.5
+		
+		if (x0 <= x && x <= x1 && y0 <= y && y <= y1){
+			return node
+		}
+	})
+}
+
+canvas.onmousedown = function(e){
+	var p = getMouse(e)
+	
+	if (e.which == 1){
+		var node = getNodeAt(p.x, p.y)
+		
+		if (!node){
+			node = createNode(p.x, p.y)
+		}
+		
+		selectNode(node)
+	}
+	
+	if (e.which == 3){
+		var node = getNodeAt(p.x, p.y)
+		
+		if (node){
+			// if no node was selected previously
+			if (selectedNode){
+				// connect selected node to clicked node
+				if (selectedNode.targets.contains(node.id)){
+					selectedNode.targets.remove(node.id)
+				}else{
+					selectedNode.targets.push(node.id)
+				}
+			}
+			// if node was selected previously
+			else{
+				selectNode(node)
+			}
+		}else{
+			deselectNode(node)
+		}
+	}
+}
+
+canvas.onwheel = function(e){
+	var p = getMouse(e)
+    var wheel = e.deltaY > 0 ? 1 : -1
+    var zoom = Math.pow(7.0/8.0, wheel)
+    translateView(p.x, p.y)
+    view.scale *= zoom
+    translateView(-p.x, -p.y)
+    return false
+}
+
+nodeInput.oninput = function(){
+	if (!selectedNode) return
+	selectedNode.text = nodeInput.value
+}
+
+redraw()
+
+</script>
+</body>
+</html>

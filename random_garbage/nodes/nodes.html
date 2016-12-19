@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Editor</title>
+<style>
+canvas {
+	border: 1px solid black;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1024" height="1024"></canvas>
+<textarea id="node"></textarea>
+
+<h1>Controls</h1>
+
+<table>
+<tr><td>Zoom:</td><td>Mouse wheel</td></tr>
+<tr><td>Create node:</td><td>Left click on canvas</td></tr>
+<tr><td>Select node:</td><td>Left click</td></tr>
+<tr><td>Deselect node:</td><td>Right click on canvas</td></tr>
+<tr><td>Connect nodes:</td><td>Select node, then right click other node</td></tr>
+<tr><td>Delete node:</td><td>Delete key</td></tr>
+<tr><td>Move view:</td><td>Drag mouse with right button</td></tr>
+<tr><td>Move node:</td><td>Drag mouse right left mouse button</td></tr>
+<tr><td>Change node text:</td><td>Select node, then write text</td></tr>
+</table>
+
+<script src="array.js"></script>
+<script src="heap.js"></script>
+<script src="util.js"></script>
+<script src="main.js"></script>
+</body>
+</html>

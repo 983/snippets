@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Game</title>
+<style>
+canvas {
+	border: 1px solid black;
+}
+</style>
+</head>
+<body>
+<canvas id="canvas" width="512" height="512"></canvas>
+<script>
+var canvas = document.getElementById("canvas");
+var context = canvas.getContext("2d");
+
+window.oncontextmenu = function(e){
+	e.preventDefault()
+}
+
+Array.prototype.contains = function(value){
+	var n = this.length
+	for (var i = 0; i < n; i++){
+		if (this[i] == value) return true
+	}
+	return false
+}
+
+window.onkeydown = function(e){
+	console.log("key down:", e.keyCode)
+	
+	if (e.keyCode == 46 || e.keyCode == 8){
+		deleteSelected()
+	}
+}
+
+window.onkeyup = function(e){
+}
+
+function drawCircle(x, y, radius){
+	context.beginPath();
+	context.arc(x, y, radius, 0, 2*Math.PI);
+	context.fill();
+	context.stroke();
+}
+
+function clamp(x, a, b){
+	if (x < a) return a
+	if (x > b) return b
+	return x 
+}
+
+function rgba(r, g, b, a){
+	r = clamp(r*256|0, 0, 255)
+	g = clamp(g*256|0, 0, 255)
+	b = clamp(b*256|0, 0, 255)
+	a = clamp(a, 0, 1)
+	return "rgba(" + r + ", " + g + ", " + b + ", " + a + ")"
+}
+
+function Mat(m, n, values){
+	if (values === undefined) values = new Float64Array(m*n)
+	this.m = m
+	this.n = n
+}
+
+Mat.prototype.get = function(i, j){
+	return this.values[i*this.n + j]
+}
+
+Mat.prototype.set = function(i, j, value){
+	this.values[i*this.n + j] = value
+}
+
+Mat.prototype.mul = function(other){
+	if (this.n != other.m){
+		throw new Exception("Matrices can not be multiplied", this, other)
+	}
+	var result = new Mat(this.m, other.n)
+	for (var i = 0; i < result.m; i++){
+		for (var j = 0; j < result.n; j++){
+		}
+	}
+	
+	return result
+}
+
+var state = {
+	nextNode: 0,
+	nodes: {},
+	selected: [],
+}
+
+var mouse = {x: 0, y: 0, dx: 0, dy: 0}
+var dragSelectStart = null
+var nodeDefaultRadius = 32
+var connectorRadius = 12
+
+function createNode(x, y){
+	var node = {
+		x: x,
+		y: y,
+		name: "node " + state.nextNode,
+		radius: nodeDefaultRadius,
+		out: [],
+	}
+	state.nodes[state.nextNode++] = node
+}
+
+function deleteSelected(){
+	for (var j = 0; j < state.selected.length; j++){
+		var i = state.selected[j]
+		delete state.nodes[i]
+	}
+	state.selected = []
+}
+
+function redraw(){
+	// clear screen
+	context.fillStyle = rgba(0.95, 0.95, 0.95, 1.0)
+	context.fillRect(0, 0, canvas.width, canvas.height)
+	
+	var overlappedNodes = []
+	
+	if (dragSelectStart !== null){
+		overlappedNodes = getOverlappingNodes(dragSelectStart.x, dragSelectStart.y, mouse.x, mouse.y)
+	}
+	
+	context.lineWidth = 3
+	
+	for (var i in state.nodes){
+		var node = state.nodes[i]
+		var radius = node.radius
+		var circumference = 2*Math.PI*radius
+		var nDashes = 32
+		
+		context.strokeStyle = "black"
+		context.setLineDash([]);
+		context.lineDashOffset = circumference/nDashes/2
+		
+		if (state.selected.contains(i)){
+			context.strokeStyle = rgba(1, 1, 0, 1)
+			context.setLineDash([circumference/nDashes, circumference/nDashes]);
+		}
+		
+		if (overlappedNodes.contains(i)){
+			context.strokeStyle = rgba(0, 1, 0, 1)
+			context.setLineDash([circumference/nDashes, circumference/nDashes]);
+		}
+		
+		context.fillStyle = "#00000000"
+		context.fillStyle = rgba(0.9, 0.9, 0.9, 1)
+		drawCircle(node.x, node.y, radius)
+		
+		context.fillStyle = rgba(1, 1, 1, 1)
+		drawCircle(node.x + radius + connectorRadius, node.y, connectorRadius)
+		drawCircle(node.x - radius - connectorRadius, node.y, connectorRadius)
+		
+		var fontSize = 14
+		context.font = fontSize + "px Arial";
+		var text = node.name
+		var xOffset = context.measureText(text).width/2
+		var yOffset = fontSize*1/4
+		context.fillStyle = "black"
+		context.fillText(text, node.x - xOffset, node.y + yOffset)
+		
+	}
+	
+	if (dragSelectStart !== null){		
+		context.strokeStyle = rgba(0, 1, 0, 0.8)
+		context.setLineDash([]);
+		var width = mouse.x - dragSelectStart.x
+		var height = mouse.y - dragSelectStart.y
+		context.strokeRect(dragSelectStart.x, dragSelectStart.y, width, height)
+	}
+	
+	requestAnimationFrame(redraw)
+}
+
+function getMouse(e){
+    var rect = canvas.getBoundingClientRect();
+    var x = e.clientX - rect.left
+    var y = e.clientY - rect.top
+    
+	mouse = {
+		x: x,
+		y: y,
+		dx: x - mouse.x,
+		dy: y - mouse.y,
+	}
+	
+	return mouse
+}
+
+window.onmousemove = function(e){
+	var p = getMouse(e)
+	
+	if (e.buttons != 0 && dragSelectStart === null){
+		for (var j = 0; j < state.selected.length; j++){
+			var i = state.selected[j]
+			var node = state.nodes[i]
+			node.x += mouse.dx
+			node.y += mouse.dy
+		}
+	}
+}
+
+function getNodeAt(x, y){
+	for (var i in state.nodes){
+		var node = state.nodes[i]
+		
+		var dx = x - node.x
+		var dy = y - node.y
+		var radius = node.radius
+		
+		if (dx*dx + dy*dy <= radius*radius){
+			return i
+		}
+	}
+	
+	return -1
+}
+
+window.onmousedown = function(e){
+	var p = getMouse(e)
+	
+	if (e.which == 1){
+		
+		var i = getNodeAt(p.x, p.y)
+		if (i == -1){
+			createNode(p.x, p.y)
+		}else{
+			if (state.selected.length == 0){
+				state.selected = [i]
+			}else{
+				for (var j = 0; j < state.selected.length; j++){
+					var k = state.selected[j]
+					var source = state.nodes[k]
+					source.out.push(i)
+				}
+				state.selected = []
+			}
+		}
+	}
+	
+	if (e.which == 3){
+		var i = getNodeAt(p.x, p.y)
+		if (i == -1){
+			dragSelectStart = p
+		}else{
+			if (!state.selected.contains(i)){
+				state.selected = [i]
+			}
+		}
+	}
+}
+
+window.onmouseup = function(e){
+	var p = getMouse(e)
+	
+	if (dragSelectStart !== null){
+		state.selected = getOverlappingNodes(dragSelectStart.x, dragSelectStart.y, p.x, p.y)
+		dragSelectStart = null
+	}
+}
+
+function rectOverlapsCircle(x0, y0, x1, y1, x, y, r){
+	
+	if (x0 > x1){
+		var temp = x0
+		x0 = x1
+		x1 = temp
+	}
+	
+	if (y0 > y1){
+		var temp = y0
+		y0 = y1
+		y1 = temp
+	}
+	
+	x0 -= r
+	y0 -= r
+	x1 += r
+	y1 += r
+	
+	return x0 <= x && x <= x1 && y0 <= y && y <= y1
+}
+
+function getOverlappingNodes(x0, y0, x1, y1){
+	var nodes = []
+	for (var i in state.nodes){
+		var node = state.nodes[i]
+		
+		if (rectOverlapsCircle(x0, y0, x1, y1, node.x, node.y, node.radius)){
+			nodes.push(i)
+		}
+	}
+	return nodes
+}
+
+redraw()
+
+</script>
+</body>
+</html>

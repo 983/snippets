@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title></title>
+</head>
+<body>
+<script>
+var abc = "abcdefghijklmnopqrstuvwxyz"
+var ABC = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+var first_identifier = abc + ABC + "_"
+var identifier_rest = first_identifier + "0123456789"
+
+function Token(value, next){
+	this.value = value
+	this.next = next
+}
+
+function Result(token, ast, error){
+	this.token = token
+	this.ast = ast
+	this.error = error
+}
+
+function AstFloat(sign, int_part, frac_part, exponent){
+	var result = sign + int_part
+	if (frac_part != "0") result += "." + frac_part
+	if (exponent != "0") result += "e" + exponent
+	return result
+	/*
+	this.sign = sign
+	this.int_part = int_part
+	this.frac_part = frac_part
+	this.exponent = exponent
+	*/
+}
+
+function AstPos(value){
+	return "+" + value
+	/*
+	this.value = value
+	*/
+}
+
+function AstNeg(value){
+	return "-" + value
+	/*
+	this.value = value
+	*/
+}
+
+function AstAdd(a, b){
+	return "(" + a + " + " + b + ")"
+	/*
+	this.a = a
+	this.b = b
+	*/
+}
+
+function AstSub(a, b){
+	return "(" + a + " - " + b + ")"
+	/*
+	this.a = a
+	this.b = b
+	*/
+}
+
+function AstMul(a, b){
+	return "(" + a + " * " + b + ")"
+	/*
+	this.a = a
+	this.b = b
+	*/
+}
+
+function AstDiv(a, b){
+	return "(" + a + " / " + b + ")"
+	/*
+	this.a = a
+	this.b = b
+	*/
+}
+
+function AstFuncCall(name, args){
+	return name + "(" + args.join(", ") + ")"
+	/*
+	this.name = name
+	this.args = args
+	*/
+}
+
+function skip_whitespace(token){
+	while (token && " \t\n\r".includes(token.value)){
+		token = token.next
+	}
+	return token
+}
+
+function strip_whitespace(func){
+	return function(token){
+		token = skip_whitespace(token)
+		var result = func(token)
+		if (result.error) return result
+		result.token = skip_whitespace(result.token)
+		return result
+	}
+}
+
+function parse_uint(token){
+	var digits = []
+	
+	while (token && "0123456789".includes(token.value)){
+		digits.push(token.value)
+		token = token.next
+	}
+	
+	if (digits.length == 0){
+		return new Result(token, null, "Expected uint")
+	}
+	
+	return new Result(token, digits.join(""))
+}
+
+function parse_int(token){
+	if (token && token.value == '+'){
+		return parse_uint(token.next)
+	}
+	
+	if (token && token.value == '-'){
+		var result = parse_uint(token.next)
+		if (!result.error){
+			result.ast = "-" + result.ast
+		}
+		return result
+	}
+	
+	return parse_uint(token)
+}
+
+var parse_number = strip_whitespace(function(token){
+	var sign = ""
+	var int_part = "0"
+	var frac_part = "0"
+	var exponent = "0"
+	
+	// [-]
+	if (token && token.value == '-'){
+		sign = "-"
+		token = token.next
+	}
+	
+	// [+]
+	if (token && token.value == '+'){
+		sign = '+'
+		token = toke.next
+	}
+	
+	// . uint
+	if (token && token.value == '.'){
+		var result = parse_uint(token.next)
+		if (result.error) return result
+		token = result.token
+		frac_part = result.ast
+	}
+	// int
+	else{
+		var result = parse_int(token)
+		if (result.error) return result
+		token = result.token
+		int_part = result.ast
+		// [.]
+		if (token && token.value == '.'){
+			token = token.next
+			
+			// [uint]
+			var result = parse_uint(token)
+			if (!result.error){
+				token = result.token
+				frac_part = result.ast
+			}
+		}
+	}
+	
+    // [e|E int]
+	if (token && (token.value == 'e' || token.value == 'E')){
+		var result = parse_int(token.next)
+		if (result.error) return result
+		token = result.token
+		exponent = result.ast
+	}
+	
+	return new Result(token, AstFloat(sign, int_part, frac_part, exponent))
+})
+
+// ( expr )
+var parse_parens = strip_whitespace(function(token){
+	if (!token || token.value != '('){
+		return new Result(token, null, "Expected '('")
+	}
+	token = token.next
+	
+	var result = parse_expr(token)
+	if (result.error) return result
+	token = result.token
+	var ast = result.ast
+	
+	if (!token || token.value != ')'){
+		return new Result(token, null, "Expected ')'")
+	}
+	token = token.next
+	
+	return new Result(token, ast)
+})
+
+// [a-zA-Z_][a-zA-Z0-9_]*
+var parse_identifier = strip_whitespace(function(token){
+	if (!token || !first_identifier.includes(token.value)){
+		return new Result(token, null, "Expected any of " + first_identifier)
+	}
+	var name = [token.value]
+	token = token.next
+	
+	while (token && identifier_rest.includes(token.value)){
+		name.push(token.value)
+		token = token.next
+	}
+	
+	return new Result(token, name.join(""))
+})
+
+// foo ()
+// foo (arg {, arg}*)
+var parse_func = strip_whitespace(function(token){
+	var result = parse_identifier(token)
+	if (result.error) return result
+	token = result.token
+	var name = result.ast
+	
+	if (!token || token.value != '('){
+		return new Result(token, null, "Expected '('")
+	}
+	token = token.next
+	
+	var args = []
+	while (true){
+		var result = parse_expr(token)
+		if (result.error) break
+		token = result.token
+		args.push(result.ast)
+		if (!token || token.value != ',') break
+		token = token.next
+	}
+	
+	if (!token || token.value != ')'){
+		return new Result(token, null, "Expected ')'")
+	}
+	token = token.next
+	
+	return new Result(token, AstFuncCall(name, args))
+})
+
+// number | (expr) | func | identifier
+var parse_term = strip_whitespace(function(token){
+	var parsers = [
+		parse_number,
+		parse_parens,
+		parse_func,
+		parse_identifier,
+	]
+	
+	for (var i = 0; i < parsers.length; i++){
+		var result = parsers[i](token)
+		if (!result.error) return result
+	}
+	
+	return new Result(token, null, "Expected term")
+})
+
+// +/- term
+var parse_unary = strip_whitespace(function(token){
+	var signs = []
+	while (token && (token.value == '+' || token.value == '-')){
+		signs.push(token.value)
+		token = token.next
+	}
+	
+	var result = parse_term(token)
+	
+	while (signs.length > 0){
+		var op = {'+':AstPos, '-':AstNeg}[signs.pop()]
+		result.ast = op(result.ast)
+	}
+	
+	return result
+})
+
+// unary {*/ unary}*
+var parse_mul = strip_whitespace(function(token){
+	var result = parse_unary(token)
+	if (result.error) return result
+	token = result.token
+	var ast = result.ast
+	while (token && (token.value == '*' || token.value == '/')){
+		var op = {'*':AstMul, '/':AstDiv}[token.value]
+		var result = parse_unary(token.next)
+		if (result.error) return result
+		token = result.token
+		ast = op(ast, result.ast)
+	}
+	return new Result(token, ast)
+})
+
+// mul {+/- mul}*
+var parse_add = strip_whitespace(function(token){
+	var result = parse_mul(token)
+	if (result.error) return result
+	token = result.token
+	var ast = result.ast
+	while (token && (token.value == '+' || token.value == '-')){
+		var op = {'+':AstAdd, '-':AstSub}[token.value]
+		var result = parse_mul(token.next)
+		if (result.error) return result
+		token = result.token
+		ast = op(ast, result.ast)
+	}
+	return new Result(token, ast)
+})
+
+var parse_expr = parse_add
+
+var source = `
+uniform float time;
+uniform vec2 mouse;
+uniform vec2 resolution;
+
+void main( void ) {
+
+	vec2 position = ( gl_FragCoord.xy / resolution.xy ) + mouse / 4.0;
+	
+	gl_FragColor = vec4( gl_FragCoord.xy / resolution.xy, sin(time)/2.0+0.5, 1.0 );
+
+}
+`
+
+function take_identifier(s){
+	var i;
+	for (i = 0; i < s.length; i++){
+		if (!identifier_rest.includes(s[i])) break
+	}
+	return s.slice(0, i)
+}
+
+function shitty_preprocessor(source){
+	var lines = source.split("\n")
+	var new_lines = []
+	var defines = {GL_ES:""}
+	var enabled = [true]
+	for (var i = 0; i < lines.length; i++){
+		var line = lines[i]
+		if (!line.trimLeft().startsWith("#")){
+			if (enabled[enabled.length-1]){
+				new_lines.push(line)
+			}
+			continue
+		}
+		line = line.trimLeft().slice(1).trimLeft()
+		if (line.startsWith("define")){
+			// TODO macro with arguments
+			line = line.slice("define".length).trimLeft()
+			var identifier = take_identifier(line)
+			var rest = line.slice(identifier.length)
+			defines[identifier] = rest
+		}else if (line.startsWith("ifdef")){
+			line = line.slice("ifdef".length).trimLeft()
+			var identifier = take_identifier(line)
+			enabled.push(identifier in defines)
+		}else if (line.startsWith("ifndef")){
+			line = line.slice("ifndef".length).trimLeft()
+			var identifier = take_identifier(line)
+			enabled.push(!(identifier in defines))
+		}else if (line.startsWith("if 0")){
+			// TODO smarter if
+			enabled.push(false)
+		}else if (line.startsWith("if 1")){
+			enabled.push(true)
+		}else if (line.startsWith("endif")){
+			enabled.pop()
+		}else if (line.startsWith("extension")){
+			new_lines.push("#"+line)
+		}else{
+			console.log("ERROR: Parsing of line not implemented yet:", line)
+		}
+	}
+	
+	return new_lines.join("\n")
+}
+
+source = shitty_preprocessor(source)
+console.log(source)
+/*
+var source = "(((1))) + 2 + ((3) + 4) + foo(1, 2, 3) + bar * -1 +  -13.37e2 * -0.e2 / 9812346.1231e66"
+var token = null
+for (var i = source.length - 1; i >= 0; i--){
+	var value = source[i]
+	token = new Token(value, token)
+}
+
+var result = parse_expr(token)
+if (result.error){
+	console.log("Error while parsing:")
+	console.log(result.error)
+	var remaining = []
+	while (token){
+		remaining.push(token.value)
+		token = token.next
+	}
+	console.log("At:", remaining.join(""))
+}else{
+	console.log("Remaining tokens:", result.token)
+	console.log("ast:", JSON.stringify(result.ast))
+}
+*/
+</script>
+</body>
+</html>
