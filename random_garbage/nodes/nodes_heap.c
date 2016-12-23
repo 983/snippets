@@ -10,12 +10,12 @@
 #define WHERE printf("Line: %i\n", __LINE__);
 
 double sec(){
+/*
     return clock()/(double)CLOCKS_PER_SEC;
-    /*
+*/
     struct timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
     return t.tv_sec + 1e-9*t.tv_nsec;
-    */
 }
 
 const uint32_t nx = 256;

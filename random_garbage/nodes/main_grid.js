@@ -18,251 +18,198 @@ function drawGrid(gridSize, nx, ny){
 	context.stroke()
 }
 
-function Node(x, y){
-	this.x = x
-	this.y = y
-	this.prev = null
-	this.f = 0
-	this.g = 0
-	this.opened = false
-	this.closed = false
-	this.neighbors = []
-	this.heapIndex = -1
+var gridSize = 4
+var nx = 256
+var ny = 256
+var blocked = new Uint8Array(nx*ny)
+var nodeOpened = new Uint8Array(nx*ny)
+var nodeClosed = new Uint8Array(nx*ny)
+var f = new Float64Array(nx*ny)
+var g = new Float64Array(nx*ny)
+var prev = new Uint32Array(nx*ny)
+var heapIndex = new Uint32Array(nx*ny)
+
+var state = 0x12345678
+function rand(){
+	state ^= state << 15
+	state ^= state >>> 17
+	state ^= state << 5
+	// to uint32
+	state = state >>> 0
+	return state
 }
 
-function graphFromGrid(blocked, nx, ny){
-	var nodes = new Array(nx*ny)
-
-	for (var y = 0; y < ny; y++){
-		for (var x = 0; x < nx; x++){
-			nodes[x + y*nx] =  new Node(x, y)
-		}
-	}
-
-	var dx = [-1, 0, 1, -1, 1, -1, 0, 1]
-	var dy = [-1, -1, -1, 0, 0, 1, 1, 1]
-
-	for (var y = 0; y < ny; y++){
-		for (var x = 0; x < nx; x++){
-			if (blocked[x + y*nx]) continue
-			
-			var node = nodes[x + y*nx]
-			
-			for (var i = 0; i < 8; i++){
-				
-				var x2 = x + dx[i]
-				var y2 = y + dy[i]
-				
-				if (x2 < 0 || y2 < 0 || x2 >= nx || y2 >= ny) continue
-				
-				if (blocked[x2 + y2*nx]) continue
-				
-				if (x != x2 && y != y2){
-					if (blocked[x2 + y*nx] || blocked[x + y2*nx]){
-						continue
-					}
-				}
-				
-				var neighbor = nodes[x2 + y2*nx]
-				
-				node.neighbors.push(neighbor)
-			}
-		}
-	}
-	
-	return nodes
+for (var i = 0; i < 20000; i++){
+	var x = rand() % nx
+	var y = rand() % ny
+	blocked[x + y*nx] = 1
 }
 
-function findPath(nodes, start, end){
-	if (!start || !end) return false
-	
-	for (var i = 0; i < nodes.length; i++){
-		var node = nodes[i]
-		if (node){
-			node.opened = false
-			node.closed = false
-			node.f = 0
-			node.g = 0
-			node.prev = null
-			node.heapIndex = -1
-		}
+function isBlocked(x, y){
+	return blocked[x + y*nx]
+}
+
+function findPath(startX, startY, goalX, goalY){
+	for (var i = 0; i < nx*ny; i++){
+		nodeOpened[i] = 0
+		nodeClosed[i] = 0
+		f[i] = 0
+		g[i] = 0
+		prev[i] = 0
+		heapIndex[i] = 0
 	}
 	
 	function isLess(a, b){
-		return a.f < b.f
+		return f[a] < f[b]
 	}
 	
 	function setIndex(node, i){
-		node.heapIndex = i
-	}
-	
-	function distance(a, b){
-		var dx = a.x - b.x
-		var dy = a.y - b.y
-		return Math.sqrt(dx*dx + dy*dy)
+		heapIndex[node] = i
 	}
 	
 	var openSet = new MinHeap(isLess, setIndex)
-	
-	start.opened = 1
+
+	function distance(ax, ay, bx, by){
+		var dx = ax - bx
+		var dy = ay - by
+		return Math.sqrt(dx*dx + dy*dy)
+	}
+
+	var goal = goalX + goalY*nx
+	var start = startX + startY*nx
+	nodeOpened[start] = 1
 	openSet.push(start)
+	
+	var s = Math.sqrt(2)
+	var dx = [-1,  0,  1, -1, 1, -1, 0, 1]
+	var dy = [-1, -1, -1,  0, 0,  1, 1, 1]
+	var dist = [s, 1, s, 1, 1, s, 1, s]
+	
+	var t = window.performance.now()
 	
 	while (!openSet.empty()){
 		var node = openSet.pop()
-		node.closed = true
+		var nodeX = node % nx
+		var nodeY = node / nx >>> 0
+		nodeClosed[node] = 1
 		
-		if (node == end) return true
+		if (node == goal){
+			break
+		}
 		
-		for (var k = 0; k < node.neighbors.length; k++){
-			var neighbor = node.neighbors[k]
+		for (var k = 0; k < 8; k++){
+			var x = nodeX + dx[k]
+			var y = nodeY + dy[k]
+			var neighbor = x + y*nx
 			
-			if (neighbor.closed) continue
+			if (x < 0 || x >= nx || y < 0 || y >= ny) continue
+			if (blocked[neighbor]) continue
 			
-			var gNew = node.g + distance(node, neighbor)
-			
-			if (neighbor.opened && gNew >= neighbor.g) continue
-			
-			neighbor.prev = node
-			neighbor.g = gNew
-			neighbor.f = gNew + distance(neighbor, end)
-			
-			if (neighbor.opened){
-				openSet.removeAt(neighbor.heapIndex)
+			// if path is diagonal
+			if (x != nodeX && y != nodeY){
+				// only walk diagonal paths if they are not blocked
+				if (blocked[nodeX + y*nx] || blocked[x + nodeY*nx]){
+					continue
+				}
 			}
-			neighbor.opened = true
+			
+			if (nodeClosed[neighbor]) continue
+			
+			var gNew = g[node] + dist[k]
+			
+			if (nodeOpened[neighbor] && gNew >= g[neighbor]) continue
+			
+			prev[neighbor] = node
+			g[neighbor] = gNew
+			f[neighbor] = gNew + distance(x, y, goalX, goalY)
+			
+			if (nodeOpened[neighbor]){
+				openSet.removeAt(heapIndex[neighbor])
+			}
+			nodeOpened[neighbor] = 1
 			openSet.push(neighbor)
 		}
 	}
 	
-	return false
-}
+	var dt = window.performance.now() - t
+	
+	context.fillStyle = "#ffffff"
+	context.fillRect(0, 0, canvas.width, canvas.height)
 
-var nx = 64
-var ny = 64
-var blocked = new Uint8Array(nx*ny)
-
-var mouseOld = {x: 0, y: 0}
-var mouse = {x: 0, y: 0}
-
-function updateMouse(e){
-    var rect = canvas.getBoundingClientRect();
-	mouseOld = mouse
-	mouse = {
-		x: e.clientX - rect.left,
-		y: e.clientY - rect.top,
-	}
-}
-
-window.onmousedown = function(e){
-	updateMouse(e)
-}
-
-function drawLine(x0, y0, x1, y1, onPixel){
-	var dx = Math.abs(x1 - x0)
-	var dy = -Math.abs(y1 - y0)
-	var sx = x0 < x1 ? 1 : -1
-	var sy = y0 < y1 ? 1 : -1
-	var err = dx + dy;
-	while (1){
-		onPixel(x0, y0)
-		if (x0 == x1 && y0 == y1) break
-		var e2 = err*2
-		if (e2 > dy){
-			err += dy
-			x0 += sx
+	for (var y = 0; y < ny; y++) for (var x = 0; x < nx; x++){
+		var node = x + y*nx
+		if (nodeOpened[node]){
+			context.fillStyle = "#ffff00"
+			context.fillRect(x*gridSize, y*gridSize, gridSize, gridSize)
 		}
-		if (e2 < dx){
-			err += dx
-			y0 += sy
+		if (nodeClosed[node]){
+			context.fillStyle = "#ffa500"
+			context.fillRect(x*gridSize, y*gridSize, gridSize, gridSize)
+		}
+		if (blocked[node]){
+			context.fillStyle = "#000000"
+			context.fillRect(x*gridSize, y*gridSize, gridSize, gridSize)
 		}
 	}
+
+	context.fillStyle = "#00ff00"
+	context.fillRect(startX*gridSize, startY*gridSize, gridSize, gridSize)
+	context.fillRect(goalX*gridSize, goalY*gridSize, gridSize, gridSize)
+	
+	drawGrid(gridSize, nx, ny)
+	
+	var node = goal
+	// draw path from goal to start
+	context.beginPath()
+	context.moveTo((goalX + 0.5)*gridSize, (goalY + 0.5)*gridSize)
+	while (nodeOpened[node]){
+		var x = node % nx
+		var y = node / nx >>> 0
+		
+		context.lineTo((x + 0.5)*gridSize, (y + 0.5)*gridSize)
+		
+		if (node == start) break
+		
+		node = prev[node]
+	}
+	
+	context.strokeStyle = "#000000"
+	context.lineWidth = 5
+	context.stroke()
+	context.lineWidth = 3
+	context.strokeStyle = "#00ff00"
+	context.stroke()
+	context.lineWidth = 1
+	context.strokeStyle = "#000000"
+	
+	context.font="40px Georgia";
+	context.fillStyle = "#ffffff"
+	context.strokeStyle = "#000000"
+	context.strokeText(dt+"", 100,100)
+	context.fillText(dt+"", 100,100)
+	context.font="18px Georgia";
+	context.fillStyle = "#000000"
 }
 
+function loop(){
+	findPath(0, 3, 201, 150)
+	setTimeout(loop, 100)
+}
+loop()
+/*
 window.onmousemove = function(e){
-	updateMouse(e)
-	
-	var gridSize = 16
-
-	function screenToGrid(p){
-		var x = p.x/gridSize|0
-		var y = p.y/gridSize|0
-		if (x < 0) x = 0
-		if (y < 0) y = 0
-		if (x >= nx) x = nx - 1
-		if (y >= ny) y = ny - 1
-		return {x:x, y:y}
-	}
-	
-    var endPoint = screenToGrid(mouse)
-    
-    if (e.buttons != 0){
-		var oldPoint = screenToGrid(mouseOld)
-		drawLine(oldPoint.x, oldPoint.y, endPoint.x, endPoint.y, function(x, y){
-			blocked[x + y*nx] = true
-		})
-		blocked[endPoint.x + endPoint.y*nx] = false
-	}
-	
-	var nodes = graphFromGrid(blocked, nx, ny)
-	
-	var startPoint = {x: nx/2|0, y: ny/2|0}
-	var start = nodes[startPoint.x + startPoint.y*nx]
-	var end = nodes[endPoint.x + endPoint.y*nx]
-	
-	if (findPath(nodes, start, end)){
-		context.clearRect(0, 0, canvas.width, canvas.height);
-	
-		context.fillStyle = "#ffff00"
-		for (var y = 0; y < ny; y++) for (var x = 0; x < nx; x++){
-			var node = nodes[x + y*nx]
-			if (node && node.opened){
-				context.fillRect(x*gridSize, y*gridSize, gridSize, gridSize)
-			}
-		}
-		context.fillStyle = "#ffa500"
-		for (var y = 0; y < ny; y++) for (var x = 0; x < nx; x++){
-			var node = nodes[x + y*nx]
-			if (node && node.closed){
-				context.fillRect(x*gridSize, y*gridSize, gridSize, gridSize)
-			}
-		}
-		context.fillStyle = "#000000"
-		for (var y = 0; y < ny; y++) for (var x = 0; x < nx; x++){
-			if (blocked[x + y*nx]){
-				context.fillRect(x*gridSize, y*gridSize, gridSize, gridSize)
-			}
-		}
-
-		context.fillStyle = "#00ff00"
-		context.fillRect(start.x*gridSize, start.y*gridSize, gridSize, gridSize)
-		context.fillRect(end.x*gridSize, end.y*gridSize, gridSize, gridSize)
-		
-		drawGrid(gridSize, nx, ny)
-		
-		var node = end
-		// draw path from goal to start
-		context.beginPath()
-		context.moveTo((node.x + 0.5)*gridSize, (node.y + 0.5)*gridSize)
-		while (node && node.opened){
-			
-			context.lineTo((node.x + 0.5)*gridSize, (node.y + 0.5)*gridSize)
-			
-			if (node == start) break
-			
-			node = node.prev
-		}
-		
-		context.strokeStyle = "#000000"
-		context.lineWidth = 5
-		context.stroke()
-		context.lineWidth = 3
-		context.strokeStyle = "#00ff00"
-		context.stroke()
-		context.lineWidth = 1
-		context.strokeStyle = "#000000"
-	}
+    var rect = canvas.getBoundingClientRect();
+    var x = e.clientX - rect.left
+    var y = e.clientY - rect.top
+    x = x/gridSize|0
+    y = y/gridSize|0
+    if (x < 0) x = 0
+    if (y < 0) y = 0
+    if (x >= nx) x = nx - 1
+    if (y >= ny) y = ny - 1
+	findPath(nx/2|0, ny/2|0, x, y)
 }
-
+*/
 /*
 function drawCircle(x, y, radius){
 	context.beginPath();
