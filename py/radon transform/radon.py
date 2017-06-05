@@ -4,6 +4,12 @@ from skimage.io import imread
 from skimage.transform import iradon_sart
 from numba import jit
 import time
+import scipy.signal
+
+np.random.seed(0)
+
+def flatten(x):
+    return x.reshape(np.product(x.shape))
 
 @jit(nopython=True, nogil=True)
 def lerp(a, b, u):
@@ -171,13 +177,20 @@ def iradon(radon_transformed, image):
     
     return image
 
+def blur(image):
+    kernel = np.array([[1, 2, 4, 2, 1]], dtype=np.float32)
+    kernel = np.dot(kernel.T, kernel)
+    kernel /= np.sum(kernel)
+    return scipy.signal.convolve2d(image, kernel, mode='same')
+
 image = imread("test.png", as_grey=True)
 
 transformed = radon(image)
 transformed += np.random.randn(*transformed.shape)
 
 reconstructed = np.zeros(image.shape)
-for _ in range(10):
+n_iterations = 10
+for i in range(n_iterations):
     start_time = time.clock()
     reconstructed = iradon(transformed, reconstructed)
     delta_time = time.clock() - start_time
