@@ -1,6 +1,5 @@
 import sounddevice as sd
 from numpy import *
-import matplotlib.pyplot as plt
 import time, sys, os
     
 def smoothstep(x, a, b):
@@ -15,7 +14,7 @@ n = samplerate
 t = linspace(0, 1, samplerate, endpoint=False)
 t = t[:blocksize]
 
-frequency = 6000
+frequency = 1000
 
 data = cos(2*pi*t*frequency)
 
@@ -40,5 +39,6 @@ stream = sd.OutputStream(
     callback=callback)
 
 stream.start()
-time.sleep(2)
+# chirp for one hour
+time.sleep(60*60)
 stream.stop()

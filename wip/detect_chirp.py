@@ -5,19 +5,20 @@ from OpenGL.GLU import *
 import numpy as np
 import sounddevice as sd
 import time, sys, os
+import matplotlib.pyplot as plt
 
 width = 512
 height = 512
 
 samplerate = 48000
-blocksize = 1024
-frequency = 6000
-buffer_size = blocksize*2
+block_size = 1000
+frequency = 1000
+buffer_size = block_size*2
 
 buffer = np.zeros(buffer_size, dtype=np.float32)
 
 t = np.linspace(0, 1, samplerate, endpoint=False)
-t = t[:blocksize]
+t = t[:block_size]
 
 data = np.cos(2*np.pi*t*frequency)
 
@@ -27,21 +28,28 @@ window = np.exp(-x**2)
 data *= window
 
 def callback(indata, frames, time, status):
-    buffer[:blocksize] = indata[:, 0]
-    buffer[:] = np.roll(buffer, -blocksize)
+    buffer[:block_size] = indata[:, 0]
+    buffer[:] = np.roll(buffer, -block_size)
 
 stream = sd.InputStream(
     channels=1,
     callback=callback,
-    blocksize=blocksize,
+    blocksize=block_size,
     samplerate=samplerate)
 
 stream.start()
 
+def fftcorrelate(a, b):
+    a = np.fft.rfft(a)
+    b = np.fft.rfft(b)
+    c = a * b
+    c = np.fft.irfft(c)
+    return c
+
 if 1:
     pygame.init()
-    display = (width, height)
-    pygame.display.set_mode(display, DOUBLEBUF | OPENGL)
+    flags = DOUBLEBUF | OPENGL | pygame.RESIZABLE
+    surface = pygame.display.set_mode((width, height), flags)
 
     while True:
         for event in pygame.event.get():
@@ -51,13 +59,24 @@ if 1:
                 pygame.quit()
                 sys.exit(0)
 
+            if event.type == pygame.VIDEORESIZE:
+                print(event)
+                surface = pygame.display.set_mode((event.w, event.h), flags)
+        
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-        result = np.abs(np.correlate(buffer, data, mode='same'))
+        result = fftcorrelate(buffer, np.pad(data, (0, block_size), mode='constant'))
+
+        result = np.abs(result)
 
         glBegin(GL_LINE_STRIP)
         for x, y in zip(np.linspace(-1, 1, len(result)), result):
-            glVertex2f(x, y*2.0/np.sqrt(len(buffer)))
+            glVertex2f(x, y*2.0/np.sqrt(len(buffer)) + 0.25)
+        glEnd()
+
+        glBegin(GL_LINE_STRIP)
+        for x, y in zip(np.linspace(-1, 1, len(result)), buffer):
+            glVertex2f(x, y*4.0 - 0.25)
         glEnd()
         
         pygame.display.flip()
