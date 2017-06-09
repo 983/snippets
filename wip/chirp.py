@@ -7,14 +7,13 @@ def smoothstep(x, a, b):
     return (3.0 - 2.0*t)*t*t
 
 samplerate = 48000
-blocksize = 6000
+blocksize = 1000
+frequency = 6000
 
 n = samplerate
 
 t = linspace(0, 1, samplerate, endpoint=False)
 t = t[:blocksize]
-
-frequency = 1000
 
 data = cos(2*pi*t*frequency)
 
