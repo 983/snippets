@@ -98,7 +98,7 @@ if 1:
 
         glBegin(GL_LINE_STRIP)
         for x, y in zip(np.linspace(-1, 1, len(result)), result):
-            glVertex2f(x, y*2.0/np.sqrt(len(buffer)) + 0.25)
+            glVertex2f(x, y*0.5 + 0.25)
         glEnd()
 
         glBegin(GL_LINE_STRIP)
