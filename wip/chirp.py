@@ -7,7 +7,7 @@ def smoothstep(x, a, b):
     return (3.0 - 2.0*t)*t*t
 
 samplerate = 48000
-blocksize = 1000
+blocksize = 6000
 
 n = samplerate
 

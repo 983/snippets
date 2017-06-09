@@ -6,13 +6,14 @@ import numpy as np
 import sounddevice as sd
 import time, sys, os
 import matplotlib.pyplot as plt
+import scipy.signal
 
 width = 512
 height = 512
 
 samplerate = 48000
 block_size = 1000
-frequency = 1000
+frequency = 6000
 buffer_size = block_size*2
 
 buffer = np.zeros(buffer_size, dtype=np.float32)
@@ -38,6 +39,28 @@ stream = sd.InputStream(
     samplerate=samplerate)
 
 stream.start()
+
+# does not work with len(data) != samplerate
+"""
+def fft_bandpass(data, low, high):
+    data = np.fft.rfft(data)
+    data[:low] = 0
+    data[high:] = 0
+    data = np.fft.irfft(data)
+    return data
+"""
+
+def butter_bandpass(lowcut, highcut, fs, order=5):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = scipy.signal.butter(order, [low, high], btype='band')
+    return b, a
+
+def butter_bandpass_filter(data, lowcut, highcut, samplerate, order=5):
+    b, a = butter_bandpass(lowcut, highcut, samplerate, order=order)
+    y = scipy.signal.lfilter(b, a, data)
+    return y
 
 def fftcorrelate(a, b):
     a = np.fft.rfft(a)
@@ -65,7 +88,11 @@ if 1:
         
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-        result = fftcorrelate(buffer, np.pad(data, (0, block_size), mode='constant'))
+        bandpass_width = 100
+
+        bandpassed_buffer = butter_bandpass_filter(buffer, frequency - bandpass_width, frequency + bandpass_width, samplerate)
+
+        result = fftcorrelate(bandpassed_buffer, np.pad(data, (0, block_size), mode='constant'))
 
         result = np.abs(result)
 
