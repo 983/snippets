@@ -22,7 +22,13 @@ x = linspace(-3, 3, len(data))
 window = exp(-x**2)
 
 if 0:
+    import matplotlib.pyplot as plt
+    plt.subplot(1, 3, 1)
     plt.plot(window)
+    plt.subplot(1, 3, 2)
+    plt.plot(data)
+    plt.subplot(1, 3, 3)
+    plt.plot(data*window)
     plt.show()
     sys.exit(0)
 
