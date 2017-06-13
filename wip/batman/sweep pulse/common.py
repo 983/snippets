@@ -43,8 +43,8 @@ def butter_bandpass_filter(data, lowcut, highcut, samplerate, order=5):
 samplerate = 48000
 block_size = 1024
 
-f0 = 14*1000*block_size/float(samplerate)
-f1 = 18*1000*block_size/float(samplerate)
+f0 = 12*1000*block_size/float(samplerate)
+f1 = 16*1000*block_size/float(samplerate)
 
 t = np.linspace(0, 1, block_size, endpoint=False)
 
