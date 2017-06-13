@@ -23,7 +23,6 @@ def butter_bandpass_filter(data, lowcut, highcut, samplerate, order=5):
 
 width = 512
 height = 512
-buffer_size = block_size*8
 
 buffer = np.zeros(buffer_size, dtype=np.float32)
 
