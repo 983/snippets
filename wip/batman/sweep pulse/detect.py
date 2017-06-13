@@ -6,28 +6,13 @@ import numpy as np
 import sounddevice as sd
 import time, sys, os
 import matplotlib.pyplot as plt
-import scipy.signal
+from common import *
 
 width = 512
 height = 512
-
-samplerate = 48000
-block_size = 1024
-
-f0 = 14*1000*block_size/float(samplerate)
-f1 = 18*1000*block_size/float(samplerate)
-
 buffer_size = block_size*2
 
 buffer = np.zeros(buffer_size, dtype=np.float32)
-
-t = np.linspace(0, 1, block_size, endpoint=False)
-
-data = scipy.signal.chirp(t, f0, 1.0, f1)
-
-window = scipy.signal.tukey(len(data))
-
-data = data*window
 
 def callback(indata, frames, time, status):
     buffer[:block_size] = indata[:, 0]
@@ -40,25 +25,6 @@ stream = sd.InputStream(
     samplerate=samplerate)
 
 stream.start()
-
-def butter_bandpass(lowcut, highcut, fs, order=5):
-    nyq = 0.5 * fs
-    low = lowcut / nyq
-    high = highcut / nyq
-    b, a = scipy.signal.butter(order, [low, high], btype='band')
-    return b, a
-
-def butter_bandpass_filter(data, lowcut, highcut, samplerate, order=5):
-    b, a = butter_bandpass(lowcut, highcut, samplerate, order=order)
-    y = scipy.signal.lfilter(b, a, data)
-    return y
-
-def fftcorrelate(a, b):
-    a = np.fft.rfft(a)
-    b = np.fft.rfft(b)
-    c = a * b
-    c = np.fft.irfft(c)
-    return c
 
 if 1:
     pygame.init()
