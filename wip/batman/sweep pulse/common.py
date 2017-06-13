@@ -25,21 +25,6 @@ def tukey(M, alpha=0.5, sym=True):
 
     return w
 
-# TODO remove scipy dependency here
-"""
-def butter_bandpass(lowcut, highcut, fs, order=5):
-    nyq = 0.5 * fs
-    low = lowcut / nyq
-    high = highcut / nyq
-    b, a = scipy.signal.butter(order, [low, high], btype='band')
-    return b, a
-
-def butter_bandpass_filter(data, lowcut, highcut, samplerate, order=5):
-    b, a = butter_bandpass(lowcut, highcut, samplerate, order=order)
-    y = scipy.signal.lfilter(b, a, data)
-    return y
-"""
-
 samplerate = 48000
 block_size = 1024
 
@@ -55,3 +40,5 @@ data = chirp
 window = tukey(len(data))
 
 data = data*window
+
+data = np.concatenate([data, np.zeros(block_size*7)])
