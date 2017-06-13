@@ -67,8 +67,11 @@ if 1:
         else:
             result = fftcorrelate(buffer, np.pad(chirp*window, (0, len(buffer) - len(chirp)), mode='constant'))
 
+        analytic_signal = scipy.signal.hilbert(result)
+        amplitude_envelope = np.abs(analytic_signal)
+
         glBegin(GL_LINE_STRIP)
-        for x, y in zip(np.linspace(-1, 1, len(result)), result):
+        for x, y in zip(np.linspace(-1, 1, len(result)), amplitude_envelope):
             glVertex2f(x, y*0.5 + 0.25)
         glEnd()
 
