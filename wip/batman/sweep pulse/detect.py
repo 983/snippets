@@ -23,8 +23,7 @@ def butter_bandpass_filter(data, lowcut, highcut, samplerate, order=5):
 
 width = 512
 height = 512
-buffer_size = block_size*16
-buffer_size = samplerate
+buffer_size = block_size*8
 
 buffer = np.zeros(buffer_size, dtype=np.float32)
 
@@ -61,7 +60,7 @@ if 1:
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
 
-        if 0:
+        if 1:
             slop = 100
             bandpassed_buffer = butter_bandpass_filter(buffer, f0*samplerate/block_size - slop, f1*samplerate/block_size + slop, samplerate)
 

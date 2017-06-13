@@ -26,7 +26,7 @@ def tukey(M, alpha=0.5, sym=True):
     return w
 
 samplerate = 48000
-block_size = 1024
+block_size = 1000
 
 f0 = 12*1000*block_size/float(samplerate)
 f1 = 16*1000*block_size/float(samplerate)
@@ -37,5 +37,5 @@ chirp = np.cos(2*np.pi*t*lerp(f0, f1, t))
 
 window = tukey(len(chirp))
 
-data = np.zeros(samplerate)
+data = np.zeros(block_size*4)
 data[:len(chirp)] = chirp * window
