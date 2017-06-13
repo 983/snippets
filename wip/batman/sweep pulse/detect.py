@@ -23,18 +23,20 @@ def butter_bandpass_filter(data, lowcut, highcut, samplerate, order=5):
 
 width = 512
 height = 512
-buffer_size = block_size*8
+buffer_size = block_size*16
+buffer_size = samplerate
 
 buffer = np.zeros(buffer_size, dtype=np.float32)
 
 def callback(indata, frames, time, status):
-    buffer[:block_size] = indata[:, 0]
-    buffer[:] = np.roll(buffer, -block_size)
+    #buffer[:block_size] = indata[:, 0]
+    #buffer[:] = np.roll(buffer, -block_size)
+    buffer[:] = indata[:, 0]
 
 stream = sd.InputStream(
     channels=1,
     callback=callback,
-    blocksize=block_size,
+    blocksize=buffer_size,
     samplerate=samplerate)
 
 stream.start()

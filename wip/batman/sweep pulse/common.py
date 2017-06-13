@@ -35,10 +35,7 @@ t = np.linspace(0, 1, block_size, endpoint=False)
 
 chirp = np.cos(2*np.pi*t*lerp(f0, f1, t))
 
-data = chirp
+window = tukey(len(chirp))
 
-window = tukey(len(data))
-
-data = data*window
-
-data = np.concatenate([data, np.zeros(block_size*7)])
+data = np.zeros(samplerate)
+data[:len(chirp)] = chirp * window
