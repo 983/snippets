@@ -37,6 +37,13 @@ windows = [
     #scipy.signal.exponential(n, tau=3.0),
 ]
 
+window_names2 = [
+    "tukey",
+    "kaiser, beta=14",
+    "slepian, width=0.3",
+    "chebwin, 100",
+]
+
 methods = ['linear', 'quadratic', 'logarithmic', 'hyperbolic']
 
 if 0:
@@ -71,8 +78,8 @@ for i, window_name in enumerate(window_names):
     plt.legend()
 plt.show()
 
-for i, window in enumerate(windows):
+for i, window, window_name in zip(range(len(windows)), windows, window_names2):
     plt.subplot(len(windows), 1, 1 + i)
-    make_plot(methods[0], f0, f1, window, "window %d"%i)
+    make_plot(methods[0], f0, f1, window, window_name)
     plt.legend()
 plt.show()
