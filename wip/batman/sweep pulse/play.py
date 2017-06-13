@@ -7,16 +7,16 @@ def lerp(a, b, u):
     return a*(1 - u) + u*b
 
 samplerate = 48000
-blocksize = 1024
+block_size = 1024
 
-f0 = 14*1000*blocksize/float(samplerate)
-f1 = 18*1000*blocksize/float(samplerate)
+f0 = 14*1000*block_size/float(samplerate)
+f1 = 18*1000*block_size/float(samplerate)
 
-t = np.linspace(0, 1, blocksize, endpoint=False)
+t = np.linspace(0, 1, block_size, endpoint=False)
 
 data = scipy.signal.chirp(t, f0, 1.0, f1)
 
-window = scipy.signal.tukey(blocksize)
+window = scipy.signal.tukey(len(data))
 
 data = data*window
 
