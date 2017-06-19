@@ -3,23 +3,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-template <typename T>
-struct Vec3 {
-    T x, y, z;
-};
-
-template <typename T> Vec3<T> operator + (Vec3<T> a, Vec3<T> b){ return Vec3<T>{a.x + b.x, a.y + b.y, a.z + b.z}; }
-template <typename T> Vec3<T> operator - (Vec3<T> a, Vec3<T> b){ return Vec3<T>{a.x - b.x, a.y - b.y, a.z - b.z}; }
-template <typename T> Vec3<T> operator * (Vec3<T> a, Vec3<T> b){ return Vec3<T>{a.x * b.x, a.y * b.y, a.z * b.z}; }
-template <typename T> Vec3<T> operator / (Vec3<T> a, Vec3<T> b){ return Vec3<T>{a.x / b.x, a.y / b.y, a.z / b.z}; }
-
-template <typename T>
-Vec3<T> operator * (T a, Vec3<T> b){
-    return Vec3<T>{a*b.x, a*b.y, a*b.z};
-}
-
-typedef Vec3<float> Vec3f;
-
 void put(uint8_t *data, int n, uint32_t value){
     for (int i = 0; i < n; i++) data[i] = (value >> i*8) & 0xff;
 }
