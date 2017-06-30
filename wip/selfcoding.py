@@ -35,9 +35,36 @@ costs = {
     (2, 4): 10,
 }
 
+m = [
+    [9, -1, -1, -1, -1, -1],
+    [5, 20, 2, 5, 5, 5],
+    [4, 8, 10, 7, 6, 5],
+    [13, 14, 10, 15, 12, 11],
+    [6, 8, 10, 9, 11, 7],
+    [15, 16, 3, 18, 17, 19],
+]
+
+m2 = [
+    [9, -1, -1, -1, -1, -1],
+    [5, 20, 2, 5, 5, 5],
+    [4, 8, 10, 7, 6, 5],
+    [13, 14, 10, 15, 12, 11],
+    [6, 8, 10, 9, 11, 7],
+    [15, 16, 3, 18, 17, 19],
+]
+
 t = time.clock()
 count = 0
 for helpers in itertools.product(V, repeat=n):
+    count += 1
+dt = time.clock()
+
+print(count, dt)
+
+
+t = time.clock()
+count = 0
+for helpers in itertools.product([0, 1], repeat=len(costs)):
     count += 1
 dt = time.clock()
 
