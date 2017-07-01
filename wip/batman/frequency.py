@@ -6,7 +6,6 @@ import numpy as np
 import sounddevice as sd
 import time, sys, os
 import matplotlib.pyplot as plt
-from common import *
 import scipy.signal
 
 def butter_bandpass(lowcut, highcut, fs, order=5):
@@ -24,20 +23,25 @@ def butter_bandpass_filter(data, lowcut, highcut, samplerate, order=5):
 width = 512
 height = 512
 
+block_size = 1024
+buffer_size = 8*1024
+samplerate = 48000
+
 buffer = np.zeros(buffer_size, dtype=np.float32)
 
 def callback(indata, frames, time, status):
-    #buffer[:block_size] = indata[:, 0]
-    #buffer[:] = np.roll(buffer, -block_size)
-    buffer[:] = indata[:, 0]
+    buffer[:block_size] = indata[:, 0]
+    buffer[:] = np.roll(buffer, -block_size)
 
 stream = sd.InputStream(
     channels=1,
     callback=callback,
-    blocksize=buffer_size,
+    blocksize=block_size,
     samplerate=samplerate)
 
 stream.start()
+
+window = scipy.signal.tukey(len(buffer))
 
 if 1:
     pygame.init()
@@ -58,27 +62,12 @@ if 1:
         
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-
-        if 1:
-            slop = 100
-            bandpassed_buffer = butter_bandpass_filter(buffer, f0*samplerate/block_size - slop, f1*samplerate/block_size + slop, samplerate)
-
-            result = fftcorrelate(bandpassed_buffer, np.pad(chirp*window, (0, len(bandpassed_buffer) - len(chirp)), mode='constant'))
-        else:
-            result = fftcorrelate(buffer, np.pad(chirp*window, (0, len(buffer) - len(chirp)), mode='constant'))
-
-        #analytic_signal = scipy.signal.hilbert(result)
-        #amplitude_envelope = np.abs(analytic_signal)
-        #result = np.abs(result)
-
+        #result = np.abs(np.fft.rfft(buffer*window))
+        f, result = scipy.signal.periodogram(buffer, fs=buffer_size/float(samplerate))
+        
         glBegin(GL_LINE_STRIP)
         for x, y in zip(np.linspace(-1, 1, len(result)), result):
-            glVertex2f(x, y*0.5 + 0.25)
-        glEnd()
-
-        glBegin(GL_LINE_STRIP)
-        for x, y in zip(np.linspace(-1, 1, len(result)), buffer):
-            glVertex2f(x, y*4.0 - 0.25)
+            glVertex2f(x, y*0.5)
         glEnd()
         
         pygame.display.flip()

@@ -29,8 +29,8 @@ samplerate  = 48000
 block_size  = 200
 buffer_size = 2000
 
-f0 = 12*1000*block_size/float(samplerate)
-f1 = 16*1000*block_size/float(samplerate)
+f0 = 15*1000*block_size/float(samplerate)
+f1 = 20*1000*block_size/float(samplerate)
 
 t = np.linspace(0, 1, block_size, endpoint=False)
 
