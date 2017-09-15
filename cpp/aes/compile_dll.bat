@@ -1,0 +1,1 @@
+gcc aes.c -shared -o aes.dll -s -O3 -maes -mtune=native
