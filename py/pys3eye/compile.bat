@@ -1,0 +1,1 @@
+gcc -shared my_ps3eye.c my_list.c -O3 -I. -L. -lusb-1.0 -o my_ps3eye.dll

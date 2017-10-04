@@ -1,0 +1,22 @@
+if something does not work for some reason
+    try different usb port
+        the usb 2.0 port on the left side of my laptop drops half of all frames
+        camera can not be found at all if connected to the usb 2.0 port on the right side
+        usb 3.0 port works most of the time
+
+    uninstall Code Laboratories drivers
+    and then reboot
+    
+    try different libusb dll
+
+python crashes with OSError access violation when using
+pthread functions (pthread_create, pthread_mutex_lock, etc.)
+with TDM gcc
+    
+python hangs forever when loading dll compiled with cygwin
+
+synchronization
+    critical sections have higher max latency but lower average latency
+    as compared to mutex locks
+
+high cpu usage (youtube, twitch.tv) causes dropped frames
