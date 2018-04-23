@@ -4,6 +4,42 @@
 #include <GL/gl.h>
 #include "mat.h"
 
+#include <functional>
+
+#define GL_CLAMP_TO_EDGE 0x812F
+
+typedef Vector<uint8_t> Bytes;
+
+Bytes load_file(const char *path){
+    Bytes data;
+    FILE *fp = fopen(path, "rb");
+    assert(fp != NULL);
+    fseek(fp, 0, SEEK_END);
+    size_t n = ftell(fp);
+    data.resize(n);
+    rewind(fp);
+    fread(data.data(), 1, n, fp);
+    fclose(fp);
+    return data;
+}
+
+template <typename T>
+T my_min(const T &a, const T &b){
+    return a < b ? a : b;
+}
+
+template <typename T>
+T my_max(const T &a, const T &b){
+    return a >= b ? a : b;
+}
+
+template <typename T>
+void my_swap(T &a, T &b){
+    T temp(a);
+    a = b;
+    b = temp;
+}
+
 int width = 512;
 int height = 512;
 
@@ -104,6 +140,161 @@ void draw_vertex(Point p){
     draw_circle(p, vertex_radius);
 }
 
+struct Font {
+    GLuint texture;
+    uint32_t image_width;
+    uint32_t image_height;
+    uint32_t dx;
+    uint32_t dy;
+    Bytes font_info;
+    
+    Font(const char *image_path, const char *info_path){
+        Bytes font_image = load_file(image_path);
+        
+        font_info = load_file(info_path);
+        
+        assert(font_info.size() == 4*(4 + 256*2));
+        
+        uint32_t *info = (uint32_t*)font_info.data();
+        
+        image_width  = info[0];
+        image_height = info[1];
+        
+        dx = info[2];
+        dy = info[3];
+        
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, font_image.data());
+    }
+    
+    Font(const Font&);
+    Font& operator = (const Font&);
+    
+    uint32_t get_char_width(char c) const {
+        uint8_t idx = *(uint8_t*)&c;
+        uint32_t *info = (uint32_t*)font_info.data();
+        return info[4 + idx*2 + 0];
+    }
+    
+    uint32_t get_char_height(char c) const {
+        uint8_t idx = *(uint8_t*)&c;
+        uint32_t *info = (uint32_t*)font_info.data();
+        return info[4 + idx*2 + 1];
+    }
+    
+    ~Font(){
+        glDeleteTextures(1, &texture);
+    }
+};
+
+Font *default_font = NULL;
+
+Vec2d get_text_size(const char *text, const Font *font = NULL){
+    if (!font) font = default_font;
+    
+    double x = 0.0;
+    double y = 0.0;
+    
+    uint32_t dy = font->dy;
+    
+    double x1 = 0.0;
+    double y1 = 0.0;
+    
+    for (const char *c = text; *c != '\0'; c++){
+        uint32_t char_width  = font->get_char_width (*c);
+        uint32_t char_height = font->get_char_height(*c);
+        
+        if (*c == '\n'){
+            x = 0.0;
+            y -= dy;
+            
+            y1 = my_min(y1, y - char_height);
+        }else{
+            x1 = my_max(x1, x + char_width);
+            y1 = my_min(y1, y - char_height);
+            
+            x += char_width;
+        }
+    }
+    
+    return Vec2d{x1, y1};
+}
+
+void draw_text(
+    const char *text,
+    double x0,
+    double y0,
+    const Font *font,
+    Color color = COLOR_BLACK
+){
+    if (!font) font = default_font;
+    
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, font->texture);
+    
+    double x = x0;
+    double y = y0;
+    
+    uint32_t image_width = font->image_width;
+    uint32_t image_height = font->image_height;
+    uint32_t dx = font->dx;
+    uint32_t dy = font->dy;
+
+    set_color(color);
+    
+    for (const char *c = text; *c != '\0'; c++){
+        if (*c == '\n'){
+            x = x0;
+            y -= dy;
+            continue;
+        }
+        
+        uint8_t idx = *(uint8_t*)c;
+        
+        uint8_t ix = idx % 16;
+        uint8_t iy = idx / 16;
+        
+        uint32_t char_width  = font->get_char_width (*c);
+        uint32_t char_height = font->get_char_height(*c);
+        
+        double u0 = (ix*dx              )*1.0/image_width;
+        double v0 = (iy*dy              )*1.0/image_height;
+        double u1 = (ix*dx + char_width )*1.0/image_width;
+        double v1 = (iy*dy + char_height)*1.0/image_height;
+        
+        glBegin(GL_QUADS);
+        glTexCoord2f(u0, v0); glVertex2f(x             , y              );
+        glTexCoord2f(u1, v0); glVertex2f(x + char_width, y              );
+        glTexCoord2f(u1, v1); glVertex2f(x + char_width, y - char_height);
+        glTexCoord2f(u0, v1); glVertex2f(x             , y - char_height);
+        glEnd();
+        
+        x += char_width;
+    }
+    
+    glDisable(GL_TEXTURE_2D);
+}
+
+void draw_text_centered(
+    const char *text,
+    float x,
+    float y,
+    const Font *font = NULL,
+    Color color = COLOR_BLACK
+){
+    if (!font) font = default_font;
+    
+    Vec2d size = get_text_size(text, font);
+    
+    draw_text(text, x - 0.5*size.x, y - 0.5*size.y, font, color);
+}
+
 void display(void){
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -121,8 +312,14 @@ void display(void){
         draw_line(p, q);
     }
     
-    for (Point p : points){
+    for (size_t i = 0; i < points.size(); i++){
+        Point p = points[i];
+        
         draw_vertex(p);
+        
+        char label[128];
+        snprintf(label, sizeof(label), "%i", (int)i);
+        draw_text_centered(label, p.x, p.y + 3.0f);
     }
     
     Point p = screen_to_world(mouse);
@@ -250,8 +447,6 @@ Matd calculate_distances(const Vertices &vertices, const Edges &edges){
     return dist;
 }
 
-#include <functional>
-
 template <typename T>
 void subsets(
     const Vector<T> &values,
@@ -324,6 +519,8 @@ int main(int argc, char **argv){
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_MULTISAMPLE);
     glutCreateWindow("TODO window title");
     
+    default_font = new Font("font", "font_info");
+    
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_BLEND);
     
@@ -334,7 +531,7 @@ int main(int argc, char **argv){
     printf("GPU: %s\n", glGetString(GL_RENDERER));
     printf("\n");
     
-    size_t n = 10;
+    size_t n = 13;
     
     for (size_t i = 0; i < n; i++){
         vertices.push_back(i);
@@ -343,6 +540,22 @@ int main(int argc, char **argv){
     
     for (size_t i = 0; i < n; i++){
         while (1){
+            size_t j = randi(n);
+            
+            if (i == j) continue;
+            
+            Edge edge{i, j};
+            
+            if (contains(edges, edge) || contains(edges, flip(edge))) continue;
+            
+            edges.push_back(edge);
+            break;
+        }
+    }
+    
+    for (size_t k = 0; k < 5; k++){
+        while (1){
+            size_t i = randi(n);
             size_t j = randi(n);
             
             if (i == j) continue;
