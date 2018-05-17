@@ -1,0 +1,1 @@
+g++ video_capture.cpp -o video_capture.exe -lole32 -loleaut32 -lgdi32 -O3 -s
