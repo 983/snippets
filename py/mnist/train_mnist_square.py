@@ -63,6 +63,8 @@ c = np.polyfit(x, y, 4)
 c0, c1, c2, c3, c4 = list(reversed(c))
 
 def activation(X):
+    return tf.square(X)
+    
     X2 = X*X
     X3 = X*X2
     X4 = X2*X2
