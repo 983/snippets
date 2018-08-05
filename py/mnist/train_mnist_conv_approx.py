@@ -36,7 +36,7 @@ def conv2d(X, n_out, filter_size, activation_fn):
     b = tf.Variable(tf.zeros(n_out))
     X = tf.nn.conv2d(X, W, [1,1,1,1], 'SAME')
     X = tf.nn.bias_add(X, b)
-    if activation:
+    if activation_fn:
         X = activation_fn(X)
     return X
 
