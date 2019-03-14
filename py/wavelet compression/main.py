@@ -9,6 +9,7 @@ import random, time, sys, os
 from flatten_nested import flatten, unflatten, get_structure
 from find_scale_offset import find_scale_offset
 import bz2
+import lz4.frame
 
 h = np.array([0.48296291, 0.8365163, 0.22414387, -0.12940952])
 g = np.array([h[3], -h[2], h[1], -h[0]])
@@ -92,7 +93,7 @@ print("bounds:", np.min(flat), np.max(flat))
 if 1:
     # threshold
     a = np.abs(flat)
-    threshold = np.sort(a)[int(len(a)*0.9)]
+    threshold = np.sort(a)[int(len(a)*0.95)]
     mask = a >= threshold
     flat[~mask] = 0
 
@@ -110,6 +111,7 @@ if 1:
 
     data = np.concatenate([u, signs, mask]).astype(np.uint8).tobytes()
     compressed = bz2.compress(data)
+    #compressed = lz4.frame.compress(data)
 
     print("compression factor:", np.product(image.shape)/len(compressed))
     print("compressed to %d bytes"%len(compressed))
