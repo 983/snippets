@@ -1,5 +1,8 @@
-import numpy as np
 from PIL import Image
+import numpy as np
+import random
+import math
+import time
 
 def is_point_in_polygon(px, py, points):
     inside = False
@@ -26,12 +29,15 @@ def is_point_in_polygon(px, py, points):
     
     return inside
 
-def rasterize(image, polygon, color):
+def rasterize_slow(image, polygon, color):
+    dx = -0.5
+    dy = -0.5
+    
+    polygon = [(x + dx, y + dy) for x, y in polygon]
+    
     for y in range(image.shape[0]):
         for x in range(image.shape[1]):
-            dx = 0.5
-            dy = 0.5
-            if is_point_in_polygon(x + dx, y + dy, polygon):
+            if is_point_in_polygon(x, y, polygon):
                 image[y, x] = color
 
 def draw_line(image, ax, ay, bx, by, color):
@@ -48,7 +54,61 @@ def draw_line(image, ax, ay, bx, by, color):
         if 0 <= x < image.shape[1] and 0 <= y < image.shape[0]:
             image[y, x] = color
 
-def test():
+class Frac(object):
+    def __init__(self, a, b):
+        if b < 0:
+            a = -a
+            b = -b
+        
+        self.a = a
+        self.b = b
+    
+    def __lt__(self, other):
+        return self.a * other.b < other.a * self.b
+
+    def to_int(self):
+        return int(math.ceil(self.a / self.b))
+
+
+def rasterize_fast(image, polygon, color):
+    dx = -0.5
+    dy = -0.5
+    
+    polygon = [(x + dx, y + dy) for x, y in polygon]
+    
+    ny, nx = image.shape[:2]
+    
+    intersections = [[] for _ in range(ny)]
+    
+    ax, ay = polygon[-1]
+    for bx, by in polygon:
+        
+        y0 = int(math.floor(min(ay, by)))
+        y1 = int(math.floor(max(ay, by)))
+        y0 = max(0, min(ny - 1, y0))
+        y1 = max(0, min(ny - 1, y1))
+        
+        for py in range(y0, y1 + 1):
+            if (ay < py) != (by < py):
+                pay = py - ay
+                bax = bx - ax
+                bay = by - ay
+                
+                x = Frac(pay*bax + ax*bay, bay)
+                
+                intersections[py].append(x)
+        
+        ax = bx
+        ay = by
+    
+    for y, xs in enumerate(intersections):
+        xs.sort()
+        for i in range(0, len(xs), 2):
+            x0 = xs[i + 0].to_int()
+            x1 = xs[i + 1].to_int()
+            image[y, x0:x1] = 1
+
+def test_rasterizer(rasterize):
     nx = 16
     ny = 8
     
@@ -79,21 +139,87 @@ def test():
     difference = np.max(image - expected)
     assert(difference == 0.0)
     
-    scale = 100
+    if 0:
+        scale = 100
+        
+        image = np.repeat(image, scale, axis=0)
+        image = np.repeat(image, scale, axis=1)
+        image = np.stack([image]*3, axis=2)
+        
+        for polygon in polygons:
+            ax, ay = polygon[-1]
+            for bx, by in polygon:
+                draw_line(image, scale*ax, scale*ay, scale*bx, scale*by, (0, 1, 0))
+                
+                ax = bx
+                ay = by
+        
+        image = Image.fromarray(np.clip(image[::-1]*255, 0, 255).astype(np.uint8))
+        image.show()
+
+def compare_rasterizers():
+
+    nx = 640
+    ny = 480
     
-    image = np.repeat(image, scale, axis=0)
-    image = np.repeat(image, scale, axis=1)
+    polygon = []
+    
+    random.seed(123456789)
+    
+    for _ in range(30):
+        grid = 10
+        x = int(random.random() * grid) * nx // (grid - 1)
+        y = int(random.random() * grid) * ny // (grid - 1)
+        
+        polygon.append((x, y))
+    
+    image1 = np.zeros((ny, nx))
+    image2 = np.zeros((ny, nx))
+    
+    t0 = time.perf_counter()
+    
+    rasterize_fast(image1, polygon, 1)
+    
+    t1 = time.perf_counter()
+    
+    rasterize_slow(image2, polygon, 1)
+
+    t2 = time.perf_counter()
+    
+    image3 = np.abs(image1 - image2)
+    
+    print(t1 - t0, "seconds")
+    print(t2 - t1, "seconds")
+    
+    difference = np.sum(image3)
+    
+    print("difference:", difference)
+    
+    assert(difference == 0.0)
+    
+    image = np.concatenate([
+        image1,
+        image2,
+        image3,
+    ], axis=1)
+    
     image = np.stack([image]*3, axis=2)
     
-    for polygon in polygons:
-        ax, ay = polygon[-1]
-        for bx, by in polygon:
-            draw_line(image, scale*ax, scale*ay, scale*bx, scale*by, (0, 1, 0))
-            
-            ax = bx
-            ay = by
+    ax, ay = polygon[-1]
+    for bx, by in polygon:
+        draw_line(image[:, 0*nx:1*nx, :], ax, ay, bx, by, (0, 1, 0))
+        draw_line(image[:, 1*nx:2*nx, :], ax, ay, bx, by, (0, 1, 0))
+        draw_line(image[:, 2*nx:3*nx, :], ax, ay, bx, by, (0, 1, 0))
+        
+        ax = bx
+        ay = by
     
     image = Image.fromarray(np.clip(image[::-1]*255, 0, 255).astype(np.uint8))
     image.show()
+    
+def test():
+    test_rasterizer(rasterize_slow)
+    test_rasterizer(rasterize_fast)
+    compare_rasterizers()
 
 test()
