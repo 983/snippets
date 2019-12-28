@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Encrypt/Decrypt</title>
+        <style>
+            body {
+                margin: 40px auto;
+                max-width: 650px;
+                line-height: 1.6;
+                font-size: 18px;
+                color: #444;
+                padding: 10px;
+            }
+            h1 {
+                text-align: center;
+            }
+            td {
+                padding: 10px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Encrypt</h1>
+        
+        <table>
+            <tr>
+                <td>
+                    File to encrypt:
+                </td>
+                <td>
+                    <input type="file" id="encryptFile">
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Password:
+                </td>
+                <td>
+                    <input type="text" placeholder="(Will be chosen randomly)" readonly id="encryptPassword">
+                </td>
+            </tr>
+        </table>
+        
+        <hr>
+        
+        <h1>Decrypt</h1>
+        
+        <table>
+            <tr>
+                <td>
+                    Password:
+                </td>
+                <td>
+                    <input type="password" id="decryptPassword">
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    File to decrypt:
+                </td>
+                <td>
+                    <input type="file" id="decryptFile">
+                </td>
+            </tr>
+        </table>
+        
+        <hr>
+        
+        <p>
+            Using AES-GCM with 256 bit key.
+        </p>
+        
+        <script src="crypt.js"></script>
+    </body>
+</html>
