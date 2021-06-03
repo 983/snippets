@@ -112,7 +112,7 @@ void dict_free(Dict *d){
     d->size = 0;
     d->capacity = 0;
 }
-/*
+
 DictEntry *dict_find(Dict *d, const char *key){
     if (d->size == 0) return NULL;
 
@@ -141,27 +141,12 @@ DictEntry *dict_find(Dict *d, const char *key){
         if (i >= d->capacity) i = 0;
     }
 }
-*/
+
 
 DictEntry* dict_put(Dict *d, const char *key, void *value);
 
-double t_resize = 0.0;
-
-int my_strlen(const char *c){
-    size_t n = 0;
-    for (; *c; c++) n++;
-    return n;
-}
-
-int my_streq(const char *a, const char *b){
-    for (; *a && *b; a++, b++) if (*a != *b) return 0;
-    return 1;
-}
-
 DictEntry* dict_entry(Dict *d, const char *key, int *newly_created){
     if (d->size * 3 >= d->capacity * 2){
-        double t = sec();
-
         size_t new_capacity = d->capacity * 7 / 4 + 5;
 
         printf("resize from %zu to %zu\n", d->capacity, new_capacity);
@@ -179,12 +164,9 @@ DictEntry* dict_entry(Dict *d, const char *key, int *newly_created){
 
         dict_free(d);
         memcpy(d, tmp, sizeof(*d));
-
-        t_resize += sec() - t;
     }
 
-    size_t n = my_strlen(key);
-    uint64_t h = hash(key, n);
+    uint64_t h = hash(key, strlen(key));
     size_t i = h % d->capacity;
     size_t probes = 0;
 
@@ -194,7 +176,7 @@ DictEntry* dict_entry(Dict *d, const char *key, int *newly_created){
         DictEntry *e = &d->entries[i];
 
         if (e->key){
-            if (e->hash == h && my_streq(e->key, key)) return e;
+            if (e->hash == h && 0 == strcmp(e->key, key)) return e;
         }else{
             if (newly_created) *newly_created = 1;
             d->size++;
@@ -220,18 +202,17 @@ DictEntry* dict_put(Dict *d, const char *key, void *value){
 
     return e;
 }
-/*
+
 void* dict_get(Dict *d, const char *key){
     DictEntry *e = dict_find(d, key);
 
     return e ? e->value : NULL;
 }
-*/
+
 int main(){
     //printf("%" PRIx64 "\n", hash("Hello", 5));
 
     Dict d[1];
-    /*
     dict_init(d);
 
     dict_put(d, "key1", "value1");
@@ -250,7 +231,7 @@ int main(){
     printf("%s\n", (char*)dict_get(d, "key2"));
 
     dict_free(d);
-*/
+
     dict_init(d);
 
     double t = sec();
@@ -274,7 +255,7 @@ int main(){
         e->value = NULL;
 
         if (newly_created){
-            //printf("%zu unique words - %zu probes total - %zu %% fill - %6zu probes - %6zu hash - %zu capacity - word %s\n", d->size, probes_total, d->size * 100 / d->capacity, e->probes, hash(word, strlen(word)) % d->capacity, d->capacity, word);
+            printf("%zu unique words - %zu probes total - %zu %% fill - %6zu probes - %6zu hash - %zu capacity - word %s\n", d->size, probes_total, d->size * 100 / d->capacity, e->probes, hash(word, strlen(word)) % d->capacity, d->capacity, word);
         }
 
         n_words++;
@@ -285,7 +266,6 @@ int main(){
     double dt = sec() - t;
 
     printf("%zu unique words - %zu words total - %f seconds\n", d->size, n_words, dt);
-    printf("time to resize: %f seconds\n", t_resize);
 
     // 93169 - comment
 
